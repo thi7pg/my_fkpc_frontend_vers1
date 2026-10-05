@@ -1,0 +1,92 @@
+[
+  {
+    "width": 320,
+    "route": "/order",
+    "status": "passed"
+  },
+  {
+    "width": 320,
+    "route": "/order/menu/phone-test",
+    "status": "passed"
+  },
+  {
+    "width": 320,
+    "route": "/order/product/1",
+    "status": "passed"
+  },
+  {
+    "width": 320,
+    "route": "/order/cart",
+    "status": "passed"
+  },
+  {
+    "width": 320,
+    "route": "/order/checkout",
+    "status": "passed"
+  },
+  {
+    "width": 320,
+    "route": "drawer focus and scroll restoration",
+    "status": "passed"
+  },
+  {
+    "width": 375,
+    "route": "/order",
+    "status": "passed"
+  },
+  {
+    "width": 375,
+    "route": "/order/menu/phone-test",
+    "status": "passed"
+  },
+  {
+    "width": 375,
+    "route": "/order/product/1",
+    "status": "passed"
+  },
+  {
+    "width": 375,
+    "route": "/order/cart",
+    "status": "passed"
+  },
+  {
+    "width": 375,
+    "route": "/order/checkout",
+    "status": "passed"
+  },
+  {
+    "width": 375,
+    "route": "drawer focus and scroll restoration",
+    "status": "passed"
+  },
+  {
+    "width": 430,
+    "route": "/order",
+    "status": "passed"
+  },
+  {
+    "width": 430,
+    "route": "/order/menu/phone-test",
+    "status": "passed"
+  },
+  {
+    "width": 430,
+    "route": "/order/product/1",
+    "status": "passed"
+  },
+  {
+    "width": 430,
+    "route": "/order/cart",
+    "status": "passed"
+  },
+  {
+    "width": 430,
+    "route": "/order/checkout",
+    "status": "passed"
+  },
+  {
+    "width": 430,
+    "route": "drawer focus and scroll restoration",
+    "status": "passed"
+  }
+]

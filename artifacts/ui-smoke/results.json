@@ -1,0 +1,90 @@
+{
+  "baseURL": "http://127.0.0.1:5175",
+  "mockedApi": true,
+  "results": [
+    {
+      "name": "desktop: login and protected route redirect",
+      "status": "passed"
+    },
+    {
+      "name": "desktop: landing and manual table code",
+      "status": "passed"
+    },
+    {
+      "name": "desktop: search, category, unavailable product",
+      "status": "passed"
+    },
+    {
+      "name": "desktop: product details and cart drawer",
+      "status": "passed"
+    },
+    {
+      "name": "desktop: drawer closes with Escape",
+      "status": "passed"
+    },
+    {
+      "name": "desktop: checkout validation and successful submission",
+      "status": "passed"
+    },
+    {
+      "name": "desktop: cart clears after successful order",
+      "status": "passed"
+    },
+    {
+      "name": "desktop: no uncaught browser errors",
+      "status": "passed"
+    },
+    {
+      "name": "mobile: login and protected route redirect",
+      "status": "passed"
+    },
+    {
+      "name": "mobile: landing and manual table code",
+      "status": "passed"
+    },
+    {
+      "name": "mobile: search, category, unavailable product",
+      "status": "passed"
+    },
+    {
+      "name": "mobile: product details and cart drawer",
+      "status": "passed"
+    },
+    {
+      "name": "mobile: drawer closes with Escape",
+      "status": "passed"
+    },
+    {
+      "name": "mobile: checkout validation and successful submission",
+      "status": "passed"
+    },
+    {
+      "name": "mobile: cart clears after successful order",
+      "status": "passed"
+    },
+    {
+      "name": "mobile: no uncaught browser errors",
+      "status": "passed"
+    },
+    {
+      "name": "staff: admin login and role dashboard",
+      "status": "passed"
+    },
+    {
+      "name": "staff: kitchen login and role dashboard",
+      "status": "passed"
+    },
+    {
+      "name": "staff: cashier login and role dashboard",
+      "status": "passed"
+    },
+    {
+      "name": "customer: unavailable API displays error state",
+      "status": "passed"
+    },
+    {
+      "name": "startup: corrupted auth storage recovers to login",
+      "status": "passed"
+    }
+  ]
+}
