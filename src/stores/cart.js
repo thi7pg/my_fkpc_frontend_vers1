@@ -7,7 +7,10 @@ const STORAGE_KEY = 'cart_state'
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : null
+    const state = raw ? JSON.parse(raw) : null
+    if (!state || typeof state !== 'object' || Array.isArray(state)) return null
+    if (!Array.isArray(state.items) || !Array.isArray(state.categories)) return null
+    return state
   } catch {
     return null
   }
@@ -23,11 +26,13 @@ export const useCartStore = defineStore('cart', () => {
   const restaurant = ref(saved?.restaurant ?? null)
   const categories = ref(saved?.categories ?? [])
   const items = ref(
-    (saved?.items ?? []).map((item) => ({
-      ...item,
-      price: Number(item.price) || 0,
-      quantity: Number(item.quantity) || 1,
-    })),
+    (saved?.items ?? [])
+      .filter((item) => item && typeof item === 'object' && item.productId != null)
+      .map((item) => ({
+        ...item,
+        price: Number(item.price) || 0,
+        quantity: Math.min(99, Math.max(1, Math.trunc(Number(item.quantity) || 1))),
+      })),
   )
 
   const products = computed(() => categories.value.flatMap((c) => c.products ?? []))
@@ -46,7 +51,12 @@ export const useCartStore = defineStore('cart', () => {
   )
   const total = computed(() => subtotal.value + taxAmount.value + serviceChargeAmount.value)
 
-  function setContext({ qrToken: token, table: tableInfo, restaurant: restaurantInfo, categories: categoriesInfo }) {
+  function setContext({
+    qrToken: token,
+    table: tableInfo,
+    restaurant: restaurantInfo,
+    categories: categoriesInfo,
+  }) {
     const currentToken = qrToken.value ? String(qrToken.value) : null
     const nextToken = token ? String(token) : null
 
@@ -65,9 +75,14 @@ export const useCartStore = defineStore('cart', () => {
   }
 
   function addItem(product, quantity = 1, notes = '') {
-    const existing = items.value.find((item) => item.productId === product.id && item.notes === notes)
+    const existing = items.value.find(
+      (item) => item.productId === product.id && item.notes === notes,
+    )
     if (existing) {
-      existing.quantity = Math.min(99, existing.quantity + Math.max(1, Math.trunc(Number(quantity) || 1)))
+      existing.quantity = Math.min(
+        99,
+        existing.quantity + Math.max(1, Math.trunc(Number(quantity) || 1)),
+      )
       return
     }
     items.value.push({

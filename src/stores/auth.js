@@ -7,7 +7,12 @@ export const useAuthStore = defineStore('auth', () => {
   try {
     const storedUser = localStorage.getItem('auth_user')
     savedUser = storedUser ? JSON.parse(storedUser) : null
-    if (savedUser && (typeof savedUser !== 'object' || Array.isArray(savedUser) || !['admin', 'kitchen', 'cashier'].includes(savedUser.role))) {
+    if (
+      savedUser &&
+      (typeof savedUser !== 'object' ||
+        Array.isArray(savedUser) ||
+        !['admin', 'kitchen', 'cashier'].includes(savedUser.role))
+    ) {
       throw new Error('Invalid saved session')
     }
   } catch {
@@ -20,7 +25,7 @@ export const useAuthStore = defineStore('auth', () => {
   const token = ref(localStorage.getItem('auth_token'))
   const loading = ref(false)
 
-  const isAuthenticated = computed(() => !!token.value)
+  const isAuthenticated = computed(() => !!token.value && !!user.value)
   const role = computed(() => user.value?.role ?? null)
 
   function persist(nextUser, nextToken) {
@@ -62,7 +67,7 @@ export const useAuthStore = defineStore('auth', () => {
       localStorage.setItem('auth_user', JSON.stringify(user.value))
       return user.value
     } catch (e) {
-      persist(null, null)
+      if (e.status === 401) persist(null, null)
       throw e
     }
   }
@@ -78,5 +83,15 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { user, token, loading, isAuthenticated, role, login, logout, fetchMe, dashboardRouteForRole }
+  return {
+    user,
+    token,
+    loading,
+    isAuthenticated,
+    role,
+    login,
+    logout,
+    fetchMe,
+    dashboardRouteForRole,
+  }
 })

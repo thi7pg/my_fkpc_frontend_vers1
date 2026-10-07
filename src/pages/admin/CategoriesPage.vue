@@ -1,5 +1,5 @@
 <script setup>
-import { t } from '../../i18n'
+import { t } from '../../languages'
 import { ref, onMounted } from 'vue'
 import { useToast } from 'vue-toastification'
 import { PlusIcon, TagIcon } from '@heroicons/vue/24/outline'
@@ -34,7 +34,12 @@ function openCreate() {
 
 function openEdit(category) {
   editing.value = category
-  form.value = { name: category.name, is_active: category.is_active, sort_order: category.sort_order ?? 0, image: null }
+  form.value = {
+    name: category.name,
+    is_active: category.is_active,
+    sort_order: category.sort_order ?? 0,
+    image: null,
+  }
   modalOpen.value = true
 }
 
@@ -48,10 +53,10 @@ async function save() {
     const payload = toFormData(form.value)
     if (editing.value) {
       await adminService.categories.update(editing.value.id, payload)
-      toast.success(t("Category updated"))
+      toast.success(t('Category updated'))
     } else {
       await adminService.categories.create(payload)
-      toast.success(t("Category created"))
+      toast.success(t('Category created'))
     }
     modalOpen.value = false
     await store.fetchCategories()
@@ -71,7 +76,7 @@ async function doDelete() {
   deleting.value = true
   try {
     await adminService.categories.remove(deleteTarget.value.id)
-    toast.success(t("Category deleted"))
+    toast.success(t('Category deleted'))
     confirmOpen.value = false
     await store.fetchCategories()
   } catch (e) {
@@ -85,26 +90,48 @@ async function doDelete() {
 <template>
   <div class="flex flex-col gap-6">
     <div class="flex items-center justify-between">
-      <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">{{ $t("Categories") }}</h1>
+      <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">{{ $t('Categories') }}</h1>
       <button
         class="flex items-center gap-1.5 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-500"
         @click="openCreate"
       >
-        <PlusIcon class="h-4 w-4" /> {{ $t("Add Category") }} </button>
+        <PlusIcon class="h-4 w-4" /> {{ $t('Add Category') }}
+      </button>
     </div>
 
     <div v-if="store.loading" class="flex flex-col gap-3">
       <SkeletonLoader variant="line" :count="5" />
     </div>
-    <EmptyState v-else-if="store.categories.length === 0" :icon="TagIcon" :title="$t('No categories yet')" />
+    <EmptyState v-else-if="store.error" :title="$t('Something went wrong')" :message="store.error"
+      ><button class="customer-primary mt-4" @click="store.fetchCategories">
+        {{ $t('Try again') }}
+      </button></EmptyState
+    >
+    <EmptyState
+      v-else-if="store.categories.length === 0"
+      :icon="TagIcon"
+      :title="$t('No categories yet')"
+    />
     <div v-else class="flex flex-col gap-3">
-      <CategoryCard v-for="category in store.categories" :key="category.id" :category="category" @edit="openEdit" @delete="confirmDelete" />
+      <CategoryCard
+        v-for="category in store.categories"
+        :key="category.id"
+        :category="category"
+        @edit="openEdit"
+        @delete="confirmDelete"
+      />
     </div>
 
-    <Modal v-model="modalOpen" :title="editing ? $t('Edit Category') : $t('Add Category')" size="sm">
+    <Modal
+      v-model="modalOpen"
+      :title="editing ? $t('Edit Category') : $t('Add Category')"
+      size="sm"
+    >
       <form class="flex flex-col gap-4" @submit.prevent="save">
         <div>
-          <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">{{ $t("Name") }}</label>
+          <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">{{
+            $t('Name')
+          }}</label>
           <input
             v-model="form.name"
             type="text"
@@ -114,7 +141,9 @@ async function doDelete() {
           />
         </div>
         <div>
-          <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">{{ $t("Image") }}</label>
+          <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">{{
+            $t('Image')
+          }}</label>
           <input
             type="file"
             accept="image/*"
@@ -123,15 +152,21 @@ async function doDelete() {
           />
         </div>
         <div class="flex items-center justify-between">
-          <label class="text-sm font-medium text-slate-700 dark:text-slate-200">{{ $t("Active") }}</label>
-          <input v-model="form.is_active" type="checkbox" class="h-5 w-5 rounded text-primary-600 focus:ring-primary-500" />
+          <label class="text-sm font-medium text-slate-700 dark:text-slate-200">{{
+            $t('Active')
+          }}</label>
+          <input
+            v-model="form.is_active"
+            type="checkbox"
+            class="h-5 w-5 rounded text-primary-600 focus:ring-primary-500"
+          />
         </div>
         <button
           type="submit"
           :disabled="saving"
           class="mt-2 w-full rounded-xl bg-primary-600 py-2.5 text-sm font-semibold text-white hover:bg-primary-500 disabled:opacity-50"
         >
-          {{ saving ? $t("Saving…") : $t("Save Category") }}
+          {{ saving ? $t('Saving…') : $t('Save Category') }}
         </button>
       </form>
     </Modal>

@@ -17,7 +17,10 @@ const tones = {
 
 <template>
   <div class="card flex items-center gap-4 p-5">
-    <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl" :class="tones[tone]">
+    <div
+      class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
+      :class="tones[tone]"
+    >
       <component :is="icon" v-if="icon" class="h-6 w-6" />
     </div>
     <div>

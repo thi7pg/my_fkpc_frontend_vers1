@@ -20,8 +20,10 @@ export function formatTime(value) {
   return new Intl.DateTimeFormat(intlLocale(), { timeStyle: 'short' }).format(new Date(value))
 }
 
-export function minutesSince(value) {
+export function minutesSince(value, now = Date.now()) {
   if (!value) return 0
-  return Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 60000))
+  const timestamp = new Date(value).getTime()
+  if (!Number.isFinite(timestamp)) return 0
+  return Math.max(0, Math.floor((Number(now) - timestamp) / 60000))
 }
-import { intlLocale } from '../i18n'
+import { intlLocale } from '../languages'

@@ -7,18 +7,21 @@ export const useProductsStore = defineStore('products', () => {
   const meta = ref(null)
   const loading = ref(false)
   const error = ref(null)
+  let requestVersion = 0
 
   async function fetchProducts(params = {}) {
+    const version = ++requestVersion
     loading.value = true
     error.value = null
     try {
       const res = await adminService.products.list(params)
+      if (version !== requestVersion) return
       products.value = res.data
       meta.value = res.meta ?? null
     } catch (e) {
-      error.value = e.message
+      if (version === requestVersion) error.value = e.message
     } finally {
-      loading.value = false
+      if (version === requestVersion) loading.value = false
     }
   }
 

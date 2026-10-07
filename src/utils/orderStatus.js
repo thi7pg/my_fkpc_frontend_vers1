@@ -1,4 +1,11 @@
-export const ORDER_STATUSES = ['pending', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled']
+export const ORDER_STATUSES = [
+  'pending',
+  'confirmed',
+  'preparing',
+  'ready',
+  'completed',
+  'cancelled',
+]
 
 export const STATUS_LABELS = {
   pending: 'Pending',
@@ -19,6 +26,11 @@ export const STATUS_STYLES = {
 }
 
 export function nextStatus(status) {
-  const flow = { pending: 'confirmed', confirmed: 'preparing', preparing: 'ready', ready: 'completed' }
+  const flow = {
+    pending: 'confirmed',
+    confirmed: 'preparing',
+    preparing: 'ready',
+    ready: 'completed',
+  }
   return flow[status] ?? null
 }

@@ -1,5 +1,5 @@
 <script setup>
-import { t } from '../../i18n'
+import { t } from '../../languages'
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useToast } from 'vue-toastification'
 import { FireIcon } from '@heroicons/vue/24/outline'
@@ -16,8 +16,20 @@ let pollTimer = null
 
 const columns = [
   { key: 'pending', label: 'Pending', action: 'confirmed', actionLabel: 'Accept', tone: 'warning' },
-  { key: 'confirmed', label: 'Confirmed', action: 'preparing', actionLabel: 'Start Preparing', tone: 'primary' },
-  { key: 'preparing', label: 'Preparing', action: 'ready', actionLabel: 'Mark Ready', tone: 'primary' },
+  {
+    key: 'confirmed',
+    label: 'Confirmed',
+    action: 'preparing',
+    actionLabel: 'Start Preparing',
+    tone: 'primary',
+  },
+  {
+    key: 'preparing',
+    label: 'Preparing',
+    action: 'ready',
+    actionLabel: 'Mark Ready',
+    tone: 'primary',
+  },
   { key: 'ready', label: 'Ready', action: 'completed', actionLabel: 'Complete', tone: 'success' },
 ]
 
@@ -57,7 +69,7 @@ onUnmounted(() => clearInterval(pollTimer))
 
 <template>
   <div class="flex flex-col gap-6">
-    <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">{{ $t("Kitchen") }}</h1>
+    <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">{{ $t('Kitchen') }}</h1>
 
     <div v-if="loading" class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
       <SkeletonLoader variant="card" :count="4" />
@@ -67,7 +79,9 @@ onUnmounted(() => clearInterval(pollTimer))
       <section v-for="column in columns" :key="column.key" class="flex flex-col gap-3">
         <div class="flex items-center justify-between">
           <h2 class="font-semibold text-slate-900 dark:text-slate-100">{{ $t(column.label) }}</h2>
-          <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+          <span
+            class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+          >
             {{ board[column.key]?.length ?? 0 }}
           </span>
         </div>
@@ -82,18 +96,31 @@ onUnmounted(() => clearInterval(pollTimer))
         >
           <div class="flex items-start justify-between">
             <div>
-              <p class="text-lg font-bold text-slate-900 dark:text-slate-100">#{{ order.order_number }}</p>
-              <p class="text-xs text-slate-500 dark:text-slate-400">{{ $t("Table") }} {{ order.table?.table_number ?? '—' }}</p>
+              <p class="text-lg font-bold text-slate-900 dark:text-slate-100">
+                #{{ order.order_number }}
+              </p>
+              <p class="text-xs text-slate-500 dark:text-slate-400">
+                {{ $t('Table') }} {{ order.table?.table_number ?? '—' }}
+              </p>
             </div>
-            <span class="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-              {{ minutesSince(order.created_at) }} {{ $t("min") }} </span>
+            <span
+              class="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+            >
+              {{ minutesSince(order.created_at) }} {{ $t('min') }}
+            </span>
           </div>
 
           <ul class="space-y-1 text-sm text-slate-600 dark:text-slate-300">
-            <li v-for="item in order.items" :key="item.id">{{ item.quantity }}&times; {{ item.product_name }}</li>
+            <li v-for="item in order.items" :key="item.id">
+              {{ item.quantity }}&times; {{ item.product_name }}
+            </li>
           </ul>
 
-          <p v-if="order.notes" class="rounded-lg bg-warning-50 px-2.5 py-1.5 text-xs italic text-warning-700 dark:bg-warning-500/10 dark:text-warning-400"> {{ $t("Note:") }} {{ order.notes }}
+          <p
+            v-if="order.notes"
+            class="rounded-lg bg-warning-50 px-2.5 py-1.5 text-xs italic text-warning-700 dark:bg-warning-500/10 dark:text-warning-400"
+          >
+            {{ $t('Note:') }} {{ order.notes }}
           </p>
 
           <button

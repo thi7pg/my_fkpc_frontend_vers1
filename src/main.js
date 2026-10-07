@@ -5,12 +5,12 @@ import 'vue-toastification/dist/index.css'
 import './style.css'
 import App from './App.vue'
 import router from './router'
-import i18n from './i18n'
+import languages from './languages'
 
 const app = createApp(App)
 
 app.use(createPinia())
-app.use(i18n)
+app.use(languages)
 app.use(router)
 app.use(Toast, {
   position: 'bottom-center',

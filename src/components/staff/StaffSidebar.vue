@@ -17,7 +17,7 @@ import { adminService } from '../../services/adminService'
 import DiningTableIcon from '../ui/DiningTableIcon.vue'
 import PizzaIcon from '../ui/PizzaIcon.vue'
 
-const props = defineProps({
+defineProps({
   mobileOpen: { type: Boolean, default: false },
 })
 const emit = defineEmits(['close'])
@@ -25,7 +25,12 @@ const emit = defineEmits(['close'])
 const auth = useAuthStore()
 const restaurant = useRestaurantStore()
 const logoFailed = ref(false)
-watch(() => restaurant.logo, () => { logoFailed.value = false })
+watch(
+  () => restaurant.logo,
+  () => {
+    logoFailed.value = false
+  },
+)
 onMounted(async () => {
   if (auth.role !== 'admin') return
   try {
@@ -43,6 +48,7 @@ const links = computed(() => {
   if (auth.role === 'cashier') {
     return [
       { name: 'cashier-overview', label: 'Dashboard', icon: Squares2X2Icon },
+      { name: 'cashier-orders', label: 'Orders', icon: ClipboardDocumentListIcon },
       { name: 'cashier-tables', label: 'Tables', icon: DiningTableIcon },
       { name: 'cashier-categories', label: 'Categories', icon: TagIcon },
       { name: 'cashier-products', label: 'Products', icon: PizzaIcon },
@@ -64,11 +70,26 @@ const links = computed(() => {
 </script>
 
 <template>
-  <aside class="hidden w-60 shrink-0 flex-col border-r border-slate-200 bg-white lg:flex dark:border-slate-800 dark:bg-slate-900">
+  <aside
+    class="hidden w-60 shrink-0 flex-col border-r border-slate-200 bg-white lg:flex dark:border-slate-800 dark:bg-slate-900"
+  >
     <div class="flex h-16 items-center gap-2 border-b border-slate-100 px-5 dark:border-slate-800">
-      <img v-if="restaurant.logo && !logoFailed" :src="restaurant.logo" :alt="restaurant.name + ' logo'" class="h-11 w-11 shrink-0 rounded-lg bg-white object-contain" @error="logoFailed = true" />
-      <div v-else class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-600 text-sm font-bold text-white">F</div>
-      <span class="min-w-0 truncate font-bold text-slate-900 dark:text-slate-100">{{ restaurant.name }}</span>
+      <img
+        v-if="restaurant.logo && !logoFailed"
+        :src="restaurant.logo"
+        :alt="restaurant.name + ' logo'"
+        class="h-11 w-11 shrink-0 rounded-lg bg-white object-contain"
+        @error="logoFailed = true"
+      />
+      <div
+        v-else
+        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-600 text-sm font-bold text-white"
+      >
+        F
+      </div>
+      <span class="min-w-0 truncate font-bold text-slate-900 dark:text-slate-100">{{
+        restaurant.name
+      }}</span>
     </div>
 
     <nav class="flex-1 space-y-1 p-3">
@@ -86,8 +107,17 @@ const links = computed(() => {
   </aside>
 
   <Teleport to="body">
-    <Transition enter-active-class="transition duration-200" enter-from-class="opacity-0" leave-active-class="transition duration-150" leave-to-class="opacity-0">
-      <div v-if="mobileOpen" class="fixed inset-0 z-40 bg-slate-900/50 lg:hidden" @click="emit('close')" />
+    <Transition
+      enter-active-class="transition duration-200"
+      enter-from-class="opacity-0"
+      leave-active-class="transition duration-150"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="mobileOpen"
+        class="fixed inset-0 z-40 bg-slate-900/50 lg:hidden"
+        @click="emit('close')"
+      />
     </Transition>
     <Transition
       enter-active-class="transition duration-200 ease-out"
@@ -99,10 +129,25 @@ const links = computed(() => {
         v-if="mobileOpen"
         class="fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-white shadow-2xl lg:hidden dark:bg-slate-900"
       >
-        <div class="flex h-16 items-center gap-2 border-b border-slate-100 px-5 dark:border-slate-800">
-          <img v-if="restaurant.logo && !logoFailed" :src="restaurant.logo" :alt="restaurant.name + ' logo'" class="h-11 w-11 shrink-0 rounded-lg bg-white object-contain" @error="logoFailed = true" />
-          <div v-else class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-600 text-sm font-bold text-white">F</div>
-          <span class="min-w-0 truncate font-bold text-slate-900 dark:text-slate-100">{{ restaurant.name }}</span>
+        <div
+          class="flex h-16 items-center gap-2 border-b border-slate-100 px-5 dark:border-slate-800"
+        >
+          <img
+            v-if="restaurant.logo && !logoFailed"
+            :src="restaurant.logo"
+            :alt="restaurant.name + ' logo'"
+            class="h-11 w-11 shrink-0 rounded-lg bg-white object-contain"
+            @error="logoFailed = true"
+          />
+          <div
+            v-else
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-600 text-sm font-bold text-white"
+          >
+            F
+          </div>
+          <span class="min-w-0 truncate font-bold text-slate-900 dark:text-slate-100">{{
+            restaurant.name
+          }}</span>
         </div>
         <nav class="flex-1 space-y-1 p-3">
           <RouterLink

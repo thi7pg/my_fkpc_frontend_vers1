@@ -1,14 +1,22 @@
 const key = 'fantasia_table_orders'
 function read() {
-  try { return JSON.parse(localStorage.getItem(key) || '{}') } catch { return {} }
+  try {
+    const stored = JSON.parse(localStorage.getItem(key) || '{}')
+    return stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {}
+  } catch {
+    return {}
+  }
 }
 export function rememberTableOrder(table, token, orderNumber) {
   try {
     const orders = read()
-    for (const id of [token, table?.qr_token, table?.table_number].filter(Boolean)) orders[id] = orderNumber
+    for (const id of [token, table?.qr_token, table?.table_number].filter(Boolean))
+      orders[id] = orderNumber
     localStorage.setItem(key, JSON.stringify(orders))
     localStorage.setItem('fantasia_last_order', orderNumber)
-  } catch { /* Storage is optional; successful orders still proceed to tracking. */ }
+  } catch {
+    /* Storage is optional; successful orders still proceed to tracking. */
+  }
 }
 export function tableOrder(table, token) {
   const orders = read()

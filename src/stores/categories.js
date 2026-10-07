@@ -6,17 +6,20 @@ export const useCategoriesStore = defineStore('categories', () => {
   const categories = ref([])
   const loading = ref(false)
   const error = ref(null)
+  let requestVersion = 0
 
   async function fetchCategories(params = {}) {
+    const version = ++requestVersion
     loading.value = true
     error.value = null
     try {
       const res = await adminService.categories.list(params)
+      if (version !== requestVersion) return
       categories.value = res.data
     } catch (e) {
-      error.value = e.message
+      if (version === requestVersion) error.value = e.message
     } finally {
-      loading.value = false
+      if (version === requestVersion) loading.value = false
     }
   }
 

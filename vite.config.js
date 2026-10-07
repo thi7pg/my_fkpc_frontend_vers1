@@ -8,29 +8,29 @@ export default defineConfig(({ mode }) => {
   const apiTarget = new URL(env.VITE_API_BASE_URL || '/api/v1', 'http://localhost:8000')
 
   return {
-  plugins: [vue(), tailwindcss()],
-  server: {
-    host: true,
-    proxy: {
-      '/api': {
-        target: apiTarget.origin,
-        changeOrigin: true,
-      },
-    },
-  },
-  build: {
-    outDir: 'dist',
-    sourcemap: false,
-    chunkSizeWarningLimit: 800,
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (id.includes('node_modules')) {
-            return 'vendor'
-          }
+    plugins: [vue(), tailwindcss()],
+    server: {
+      host: true,
+      proxy: {
+        '/api': {
+          target: apiTarget.origin,
+          changeOrigin: true,
         },
       },
     },
-  },
+    build: {
+      outDir: 'dist',
+      sourcemap: false,
+      chunkSizeWarningLimit: 800,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              return 'vendor'
+            }
+          },
+        },
+      },
+    },
   }
 })

@@ -9,17 +9,32 @@ const route = useRoute()
 const router = useRouter()
 const cart = useCartStore()
 const showBack = computed(() => !['landing', 'menu'].includes(route.name))
-function goBack() { router.push(cart.qrToken ? { name: 'menu', params: { qrToken: cart.qrToken } } : { name: 'landing' }) }
+function goBack() {
+  router.push(
+    cart.qrToken ? { name: 'menu', params: { qrToken: cart.qrToken } } : { name: 'landing' },
+  )
+}
 </script>
 <template>
   <header class="customer-header">
     <div class="customer-header-inner">
-      <button v-if="showBack" class="customer-icon-button header-back" :aria-label="$t('Back to menu')" @click="goBack"><ArrowLeftIcon /></button>
+      <button
+        v-if="showBack"
+        class="customer-icon-button header-back"
+        :aria-label="$t('Back to menu')"
+        @click="goBack"
+      >
+        <ArrowLeftIcon />
+      </button>
       <FantasiaBrand />
       <div class="header-actions">
         <LanguageSelector />
       </div>
     </div>
-    <div v-if="cart.table" class="customer-table-row"><span class="table-badge"><MapPinIcon /><span>{{ $t("Table") }} {{ cart.table.table_number }}</span></span></div>
+    <div v-if="cart.table" class="customer-table-row">
+      <span class="table-badge"
+        ><MapPinIcon /><span>{{ $t('Table') }} {{ cart.table.table_number }}</span></span
+      >
+    </div>
   </header>
 </template>

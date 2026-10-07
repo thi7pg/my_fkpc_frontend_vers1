@@ -1,6 +1,6 @@
 <script setup>
 defineProps({
-  variant: { type: String, default: 'card' }, 
+  variant: { type: String, default: 'card' },
   count: { type: Number, default: 1 },
 })
 </script>
@@ -14,7 +14,10 @@ defineProps({
         <div class="h-3 w-1/2 rounded bg-slate-200 dark:bg-slate-800" />
       </div>
     </div>
-    <div v-else-if="variant === 'line'" class="h-4 w-full animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+    <div
+      v-else-if="variant === 'line'"
+      class="h-4 w-full animate-pulse rounded bg-slate-200 dark:bg-slate-800"
+    />
     <div v-else class="h-10 w-10 animate-pulse rounded-full bg-slate-200 dark:bg-slate-800" />
   </template>
 </template>

@@ -1,8 +1,13 @@
 <script setup>
-import { t, intlLocale } from '../../i18n'
+import { t, intlLocale } from '../../languages'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useToast } from 'vue-toastification'
-import { CurrencyDollarIcon, ShoppingBagIcon, ReceiptPercentIcon, ChartBarIcon } from '@heroicons/vue/24/outline'
+import {
+  CurrencyDollarIcon,
+  ShoppingBagIcon,
+  ReceiptPercentIcon,
+  ChartBarIcon,
+} from '@heroicons/vue/24/outline'
 import { adminService } from '../../services/adminService'
 import { formatCurrency } from '../../utils/format'
 import DashboardCard from '../../components/staff/DashboardCard.vue'
@@ -97,14 +102,20 @@ function barHeight(value) {
 }
 
 function formatCompact(value) {
-  return new Intl.NumberFormat(intlLocale(), { notation: 'compact', maximumFractionDigits: 1 }).format(value)
+  return new Intl.NumberFormat(intlLocale(), {
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(value)
 }
 
 function periodLabel(period) {
   if (!period) return ''
   if (groupBy.value === 'month') {
     const [y, m] = period.split('-')
-    return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString(intlLocale(), { month: 'short', year: '2-digit' })
+    return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString(intlLocale(), {
+      month: 'short',
+      year: '2-digit',
+    })
   }
   if (groupBy.value === 'week') {
     return period.replace('-W', ' Wk ')
@@ -121,8 +132,8 @@ function showXLabel(index) {
 <template>
   <div class="flex flex-col gap-6">
     <div>
-      <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">{{ $t("Reports") }}</h1>
-      <p class="text-sm text-slate-500 dark:text-slate-400">{{ $t("Revenue over time.") }}</p>
+      <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">{{ $t('Reports') }}</h1>
+      <p class="text-sm text-slate-500 dark:text-slate-400">{{ $t('Revenue over time.') }}</p>
     </div>
 
     <div class="flex flex-wrap items-center gap-2">
@@ -160,9 +171,9 @@ function showXLabel(index) {
         v-model="groupBy"
         class="ml-auto rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-primary-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900"
       >
-        <option value="day">{{ $t("By day") }}</option>
-        <option value="week">{{ $t("By week") }}</option>
-        <option value="month">{{ $t("By month") }}</option>
+        <option value="day">{{ $t('By day') }}</option>
+        <option value="week">{{ $t('By week') }}</option>
+        <option value="month">{{ $t('By month') }}</option>
       </select>
     </div>
 
@@ -170,35 +181,64 @@ function showXLabel(index) {
       <div v-for="n in 3" :key="n" class="card h-20 animate-pulse" />
     </div>
     <div v-else-if="report" class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-      <DashboardCard :label="$t('Total Revenue')" :value="formatCurrency(report.total_revenue)" :icon="CurrencyDollarIcon" tone="success" />
-      <DashboardCard :label="$t('Orders Paid')" :value="report.total_orders" :icon="ShoppingBagIcon" tone="primary" />
-      <DashboardCard :label="$t('Avg per Order')" :value="formatCurrency(avgPerOrder)" :icon="ReceiptPercentIcon" tone="slate" />
+      <DashboardCard
+        :label="$t('Total Revenue')"
+        :value="formatCurrency(report.total_revenue)"
+        :icon="CurrencyDollarIcon"
+        tone="success"
+      />
+      <DashboardCard
+        :label="$t('Orders Paid')"
+        :value="report.total_orders"
+        :icon="ShoppingBagIcon"
+        tone="primary"
+      />
+      <DashboardCard
+        :label="$t('Avg per Order')"
+        :value="formatCurrency(avgPerOrder)"
+        :icon="ReceiptPercentIcon"
+        tone="slate"
+      />
     </div>
 
     <div class="card p-5">
       <div class="mb-4 flex items-center justify-between">
-        <h2 class="font-semibold text-slate-900 dark:text-slate-100">{{ $t("Revenue") }}</h2>
+        <h2 class="font-semibold text-slate-900 dark:text-slate-100">{{ $t('Revenue') }}</h2>
         <button
           v-if="hasData"
           class="text-xs font-medium text-primary-600 hover:underline dark:text-primary-400"
           @click="showTable = !showTable"
         >
-          {{ showTable ? $t("View chart") : $t("View table") }}
+          {{ showTable ? $t('View chart') : $t('View table') }}
         </button>
       </div>
 
-      <div v-if="loading" class="h-[220px] animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
+      <div
+        v-if="loading"
+        class="h-[220px] animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"
+      />
 
-      <EmptyState v-else-if="!hasData" :icon="ChartBarIcon" :title="$t('No revenue in this range')" :message="$t('Paid orders in the selected period will show up here.')" />
+      <EmptyState
+        v-else-if="!hasData"
+        :icon="ChartBarIcon"
+        :title="$t('No revenue in this range')"
+        :message="$t('Paid orders in the selected period will show up here.')"
+      />
 
       <div v-else-if="!showTable" class="flex">
-        <div class="flex h-[180px] w-12 shrink-0 flex-col justify-between pr-2 text-right text-[10px] tabular-nums text-slate-400">
+        <div
+          class="flex h-[180px] w-12 shrink-0 flex-col justify-between pr-2 text-right text-[10px] tabular-nums text-slate-400"
+        >
           <span v-for="tick in [...yTicks].reverse()" :key="tick">{{ formatCompact(tick) }}</span>
         </div>
 
         <div class="relative flex-1">
           <div class="pointer-events-none absolute inset-0 flex flex-col justify-between">
-            <span v-for="tick in yTicks" :key="tick" class="h-px w-full bg-slate-100 dark:bg-slate-800" />
+            <span
+              v-for="tick in yTicks"
+              :key="tick"
+              class="h-px w-full bg-slate-100 dark:bg-slate-800"
+            />
           </div>
 
           <div class="relative flex h-[180px] items-end gap-[2px]">
@@ -216,8 +256,12 @@ function showXLabel(index) {
                 v-if="hovered === i"
                 class="pointer-events-none absolute bottom-full z-10 mb-2 whitespace-nowrap rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs shadow-lg dark:bg-slate-100"
               >
-                <p class="font-semibold text-white dark:text-slate-900">{{ formatCurrency(point.revenue) }}</p>
-                <p class="text-slate-300 dark:text-slate-600">{{ point.orders_count }} {{ $t('orders ·') }} {{ periodLabel(point.period) }}</p>
+                <p class="font-semibold text-white dark:text-slate-900">
+                  {{ formatCurrency(point.revenue) }}
+                </p>
+                <p class="text-slate-300 dark:text-slate-600">
+                  {{ point.orders_count }} {{ $t('orders ·') }} {{ periodLabel(point.period) }}
+                </p>
               </div>
               <div
                 class="w-full max-w-6 rounded-t bg-primary-600 transition-opacity dark:bg-primary-400"
@@ -238,14 +282,20 @@ function showXLabel(index) {
       <div v-else class="overflow-x-auto">
         <table class="w-full text-sm">
           <thead>
-            <tr class="border-b border-slate-200 text-left text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
-              <th class="py-2 font-medium">{{ $t("Period") }}</th>
-              <th class="py-2 text-right font-medium">{{ $t("Revenue") }}</th>
-              <th class="py-2 text-right font-medium">{{ $t("Orders") }}</th>
+            <tr
+              class="border-b border-slate-200 text-left text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400"
+            >
+              <th class="py-2 font-medium">{{ $t('Period') }}</th>
+              <th class="py-2 text-right font-medium">{{ $t('Revenue') }}</th>
+              <th class="py-2 text-right font-medium">{{ $t('Orders') }}</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="point in series" :key="point.period" class="border-b border-slate-100 dark:border-slate-800/60">
+            <tr
+              v-for="point in series"
+              :key="point.period"
+              class="border-b border-slate-100 dark:border-slate-800/60"
+            >
               <td class="py-2">{{ periodLabel(point.period) }}</td>
               <td class="py-2 text-right tabular-nums">{{ formatCurrency(point.revenue) }}</td>
               <td class="py-2 text-right tabular-nums">{{ point.orders_count }}</td>

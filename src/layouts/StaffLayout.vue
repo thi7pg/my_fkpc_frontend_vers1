@@ -15,7 +15,9 @@ const route = useRoute()
     <div class="flex min-h-screen flex-1 flex-col">
       <StaffNavbar @toggle-sidebar="mobileSidebarOpen = true">
         <template #title>
-          <h1 class="text-lg font-semibold text-slate-900 dark:text-slate-100">{{ $t(route.meta.title ?? $t("Dashboard")) }}</h1>
+          <h1 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
+            {{ $t(route.meta.title ?? $t('Dashboard')) }}
+          </h1>
         </template>
       </StaffNavbar>
       <main class="flex-1 p-4 sm:p-6">

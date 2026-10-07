@@ -18,7 +18,14 @@ export const useRestaurantStore = defineStore('restaurant', () => {
   function setSettings(next) {
     if (!next || typeof next !== 'object') return
     settings.value = { ...settings.value, ...next }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ name: name.value, logo: logo.value }))
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ name: name.value, logo: logo.value, currency: settings.value.currency }),
+      )
+    } catch {
+      // Branding remains available for this session.
+    }
   }
 
   return { settings, logo, name, setSettings }
