@@ -84,9 +84,7 @@ test('overview has four charts and Details reveals searchable real-data tables',
   await expect(table).toContainText('No data yet')
 })
 
-test('Excel includes daily, category and product datasets and PDF includes their headings', async ({
-  page,
-}) => {
+test('Excel exports a simple summary and PDF retains detailed sections', async ({ page }) => {
   await setup(page)
   for (const kind of ['Excel', 'PDF']) {
     const downloaded = page.waitForEvent('download')
@@ -98,11 +96,9 @@ test('Excel includes daily, category and product datasets and PDF includes their
     if (kind === 'Excel') {
       const book = new ExcelJS.Workbook()
       await book.xlsx.load(buffer)
-      expect(book.getWorksheet('Daily sales').getCell('B6').value).toBe(58.25)
-      expect(book.getWorksheet('Products').getCell('A2').value).toBe('Cheese pizza')
-      expect(book.getWorksheet('Products').getCell('D2').value).toBe(30)
-      expect(book.getWorksheet('Categories').getCell('C2').value).toBe(50)
-      expect(book.getWorksheet('Best sellers').getCell('B2').value).toBe(12)
+      expect(book.worksheets.map((sheet) => sheet.name)).toEqual(['Summary'])
+      expect(book.getWorksheet('Summary').getCell('E12').value).toBe(80.5)
+      expect(book.getWorksheet('Summary').getCell('E17').value).toBe(5)
     } else {
       const text = buffer.toString('latin1')
       expect(text).toContain('(Product sales details)')

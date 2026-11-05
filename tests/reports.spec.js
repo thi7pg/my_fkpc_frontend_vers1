@@ -250,12 +250,7 @@ test('report exports download the loaded date range and real totals', async ({ p
       expect(summary.getCell('E12').numFmt).toContain('USD')
       expect(summary.views[0].showGridLines).toBe(false)
       expect(summary.pageSetup.printArea).toContain('A1:F')
-      const revenue = workbook.getWorksheet('Revenue')
-      expect(revenue.getCell('A8').value).toBe('2026-10-07')
-      expect(revenue.getCell('B8').value).toBe(168)
-      expect(revenue.getCell('C8').value).toBe(1)
-      expect(revenue.getCell('B9').value).toEqual({ formula: 'SUM(B8:B8)', result: 168 })
-      expect(revenue.views[0].ySplit).toBe(7)
+      expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(['Summary'])
     }
   }
 })

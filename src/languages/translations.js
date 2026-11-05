@@ -992,7 +992,6 @@ for (const [en, km, ko] of [
 }
 
 for (const [en, km, ko] of [
-  ['Total for this visit', 'សរុបវិក្កយបត្រនេះ', '이 청구서의 합계'],
   ['Excel', 'Excel', 'Excel'],
   ['Revenue Report', 'របាយការណ៍ចំណូល', '매출 보고서'],
 ]) {

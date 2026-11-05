@@ -80,7 +80,7 @@ for (const language of ['km', 'ko']) {
     ).toBeVisible()
     await expect(page.getByRole('link', { name: dictionary.Checkout, exact: true })).toBeVisible()
     await expect(page.getByText(dictionary.Payment, { exact: true })).toBeVisible()
-    await expect(page.getByText(dictionary['Total for this visit'], { exact: true })).toBeVisible()
+    await expect(page.getByText(dictionary['Total for this table'], { exact: true })).toBeVisible()
     await expect(page.locator('main')).not.toContainText('Not checked out')
     await expect(page.locator('main')).not.toContainText('Total for this visit')
     await expect(page.locator('main')).toContainText('Pizza')

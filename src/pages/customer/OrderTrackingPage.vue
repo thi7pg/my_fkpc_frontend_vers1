@@ -370,7 +370,7 @@ async function downloadReceipt() {
             #{{ bill.order_number }}
           </p>
           <div class="mt-3 flex justify-between gap-3 text-sm font-bold">
-            <span>{{ $t('Total for this visit') }}</span
+            <span>{{ $t('Total for this table') }}</span
             ><strong class="text-base text-primary-600">{{
               formatCurrency(bill.total_amount, currency)
             }}</strong>
