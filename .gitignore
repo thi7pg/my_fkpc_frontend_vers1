@@ -12,7 +12,8 @@ dist
 dist-ssr
 test-results
 playwright-report
-artifacts/audit-tests
+artifacts/
+table-billing-deploy.zip
 *.local
 .env
 

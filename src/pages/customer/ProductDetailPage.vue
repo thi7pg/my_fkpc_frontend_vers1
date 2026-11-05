@@ -1,4 +1,5 @@
 <script setup>
+import { productPrice } from '../../utils/productOptions'
 import { t } from '../../languages'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -19,6 +20,12 @@ const loading = ref(true)
 const error = ref('')
 const quantity = ref(1)
 const note = ref('')
+const selectedSize = ref('')
+const selectedToppings = ref([])
+watch(product, (value) => {
+  selectedSize.value = value?.sizes?.[0]?.name || ''
+  selectedToppings.value = []
+})
 let requestVersion = 0
 
 async function load() {
@@ -38,7 +45,7 @@ async function load() {
   }
 
   if (!cart.qrToken) {
-    error.value = t("Please scan your table's QR code to view the menu.")
+    error.value = "Please scan your table's QR code to view the menu."
     loading.value = false
     return
   }
@@ -53,7 +60,7 @@ async function load() {
       categories: res.data.categories,
     })
     product.value = cart.findProduct(productId)
-    if (!product.value) error.value = t('This item is no longer available.')
+    if (!product.value) error.value = 'This item is no longer available.'
   } catch (e) {
     if (version === requestVersion) error.value = e.message
   } finally {
@@ -64,11 +71,17 @@ onMounted(load)
 watch(() => route.params.id, load)
 
 const currency = computed(() => cart.restaurant?.currency ?? 'USD')
-const lineTotal = computed(() => (product.value ? product.value.price * quantity.value : 0))
+const unitPrice = computed(() =>
+  product.value ? productPrice(product.value, selectedSize.value, selectedToppings.value) : 0,
+)
+const lineTotal = computed(() => unitPrice.value * quantity.value)
 
 function addToCart() {
   if (!product.value?.available) return
-  cart.addItem(product.value, quantity.value, note.value.trim())
+  cart.addItem(product.value, quantity.value, note.value.trim(), {
+    size: selectedSize.value,
+    toppings: selectedToppings.value,
+  })
   toast.success(t('Added {name} to cart', { name: product.value.name }))
   router.push({ name: 'menu', params: { qrToken: cart.qrToken } })
 }
@@ -96,7 +109,7 @@ function addToCart() {
       <div class="flex items-start justify-between gap-4">
         <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">{{ product.name }}</h1>
         <span class="shrink-0 text-xl font-bold text-primary-600 dark:text-primary-400">
-          {{ formatCurrency(product.price, currency) }}
+          {{ formatCurrency(unitPrice, currency) }}
         </span>
       </div>
       <p
@@ -116,6 +129,29 @@ function addToCart() {
       </p>
     </div>
 
+    <p v-if="product.discount_percent > 0" class="text-sm font-semibold text-primary-600">
+      {{ product.discount_percent }}% {{ $t('Discount') }}
+    </p>
+    <fieldset v-if="product.sizes?.length" class="card p-4">
+      <legend class="font-semibold">{{ $t('Size') }}</legend>
+      <label v-for="size in product.sizes" :key="size.name" class="mt-3 flex items-center gap-3">
+        <input v-model="selectedSize" type="radio" name="size" :value="size.name" />
+        <span class="flex-1">{{ size.name }}</span
+        ><strong>{{ formatCurrency(productPrice(product, size.name), currency) }}</strong>
+      </label>
+    </fieldset>
+    <fieldset v-if="product.toppings?.length" class="card p-4">
+      <legend class="font-semibold">{{ $t('Toppings') }}</legend>
+      <label
+        v-for="topping in product.toppings"
+        :key="topping.name"
+        class="mt-3 flex items-center gap-3"
+      >
+        <input v-model="selectedToppings" type="checkbox" :value="topping.name" />
+        <span class="flex-1">{{ topping.name }}</span
+        ><strong>+{{ formatCurrency(topping.price, currency) }}</strong>
+      </label>
+    </fieldset>
     <div class="card p-4">
       <label class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">{{
         $t('Quantity')
@@ -134,7 +170,8 @@ function addToCart() {
         <button
           :aria-label="$t('Increase quantity')"
           class="quantity-button text-slate-500 hover:text-primary-600"
-          @click="quantity++"
+          :disabled="quantity >= 99"
+          @click="quantity = Math.min(99, quantity + 1)"
         >
           <PlusIcon class="h-4 w-4" />
         </button>

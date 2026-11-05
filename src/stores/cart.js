@@ -1,3 +1,4 @@
+import { productPrice, productLabel } from '../utils/productOptions'
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import { useRestaurantStore } from './restaurant'
@@ -44,12 +45,7 @@ export const useCartStore = defineStore('cart', () => {
   const taxAmount = computed(() =>
     restaurant.value?.tax_percentage ? subtotal.value * (restaurant.value.tax_percentage / 100) : 0,
   )
-  const serviceChargeAmount = computed(() =>
-    restaurant.value?.service_charge_percentage
-      ? subtotal.value * (restaurant.value.service_charge_percentage / 100)
-      : 0,
-  )
-  const total = computed(() => subtotal.value + taxAmount.value + serviceChargeAmount.value)
+  const total = computed(() => subtotal.value + taxAmount.value)
 
   function setContext({
     qrToken: token,
@@ -74,9 +70,15 @@ export const useCartStore = defineStore('cart', () => {
     return products.value.find((p) => String(p.id) === String(id)) ?? null
   }
 
-  function addItem(product, quantity = 1, notes = '') {
+  function addItem(product, quantity = 1, notes = '', options = {}) {
+    const size = options.size || ''
+    const toppings = [...(options.toppings || [])].sort()
+    const optionKey = JSON.stringify([size, toppings])
     const existing = items.value.find(
-      (item) => item.productId === product.id && item.notes === notes,
+      (item) =>
+        item.productId === product.id &&
+        item.notes === notes &&
+        JSON.stringify([item.size || '', [...(item.toppings || [])].sort()]) === optionKey,
     )
     if (existing) {
       existing.quantity = Math.min(
@@ -87,8 +89,10 @@ export const useCartStore = defineStore('cart', () => {
     }
     items.value.push({
       productId: product.id,
-      name: product.name,
-      price: Number(product.price) || 0,
+      name: productLabel(product, size, toppings),
+      size,
+      toppings,
+      price: productPrice(product, size, toppings),
       image: product.image,
       quantity: Math.min(99, Math.max(1, Math.trunc(Number(quantity) || 1))),
       notes,
@@ -101,10 +105,6 @@ export const useCartStore = defineStore('cart', () => {
       return
     }
     items.value[index].quantity = Math.min(99, Math.max(1, Math.trunc(Number(quantity) || 1)))
-  }
-
-  function updateNote(index, notes) {
-    items.value[index].notes = notes
   }
 
   function removeItem(index) {
@@ -126,16 +126,20 @@ export const useCartStore = defineStore('cart', () => {
   watch(
     [qrToken, table, restaurant, categories, items],
     () => {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          qrToken: qrToken.value,
-          table: table.value,
-          restaurant: restaurant.value,
-          categories: categories.value,
-          items: items.value,
-        }),
-      )
+      try {
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({
+            qrToken: qrToken.value,
+            table: table.value,
+            restaurant: restaurant.value,
+            categories: categories.value,
+            items: items.value,
+          }),
+        )
+      } catch {
+        // Ordering still works when browser storage is full or unavailable.
+      }
     },
     { deep: true },
   )
@@ -150,13 +154,11 @@ export const useCartStore = defineStore('cart', () => {
     itemCount,
     subtotal,
     taxAmount,
-    serviceChargeAmount,
     total,
     setContext,
     findProduct,
     addItem,
     updateQuantity,
-    updateNote,
     removeItem,
     clear,
     reset,

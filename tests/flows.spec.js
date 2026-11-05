@@ -6,7 +6,6 @@ const restaurant = {
   name: 'Fantasia',
   currency: 'USD',
   tax_percentage: 0,
-  service_charge_percentage: 0,
 }
 const product = { id: 1, name: 'Pizza', price: 9.25, available: true }
 const menu = {
@@ -16,12 +15,12 @@ const menu = {
 }
 const order = {
   id: 1,
-  order_number: 'FKPC-000001',
+  order_number: 'ORD-000001',
+  invoice_id: 1,
   table: menu.table,
   status: 'pending',
   subtotal: 9.25,
   tax_amount: 0,
-  service_charge_amount: 0,
   total_amount: 9.25,
   created_at: '2026-10-06T07:04:36Z',
   items: [{ id: 1, product_id: 1, product_name: 'Pizza', quantity: 1, subtotal: 9.25 }],
@@ -31,6 +30,7 @@ const quote = { ...order, items: order.items }
 async function mockApi(page, options = {}) {
   const requests = []
   let paid = false
+  let checkoutRequested = false
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request()
     const url = new URL(request.url())
@@ -50,30 +50,24 @@ async function mockApi(page, options = {}) {
     else if (endpoint === '/auth/logout') data = null
     else if (endpoint.startsWith('/menu/')) data = menu
     else if (endpoint === '/cart/validate') data = quote
-    else if (endpoint === '/orders' && request.method() === 'POST')
-      data = {
-        ...order,
-        ...(body.payment_method === 'acleda' ? { payment_token: 'payment-token' } : {}),
-      }
-    else if (endpoint.startsWith('/orders/track/')) data = { ...order, table: '003' }
+    else if (endpoint === '/orders' && request.method() === 'POST') data = order
+    else if (endpoint === '/orders/track/ORD-000001/checkout') {
+      checkoutRequested = true
+      data = sessionPayment(paid)
+    } else if (endpoint === '/orders/track/ORD-000001/bill')
+      data = sessionPayment(paid, checkoutRequested)
+    else if (endpoint.startsWith('/orders/track/'))
+      data = { ...order, invoice_id: options.legacyOrder ? null : 1, table: '003' }
     else if (endpoint === '/orders') data = [order]
     else if (endpoint === '/orders/1') data = order
     else if (endpoint === '/orders/1/status') data = { ...order, status: body.status }
-    else if (endpoint === '/cashier/payments')
-      data = [
-        {
-          id: 1,
-          order_id: 1,
-          order_number: order.order_number,
-          amount: 9.25,
-          method: 'cash',
-          status: paid ? 'paid' : 'pending',
-          received_by: paid ? 'Cashier User' : null,
-        },
-      ].filter((p) => p.status === url.searchParams.get('status'))
-    else if (endpoint === '/cashier/payments/1/pay') {
+    else if (endpoint === '/cashier/invoices')
+      data = [sessionPayment(paid)].filter(
+        (session) => Boolean(session.closed_at) === (url.searchParams.get('status') === 'closed'),
+      )
+    else if (endpoint === '/cashier/invoices/1/pay') {
       paid = true
-      data = {}
+      data = sessionPayment(true)
     } else if (endpoint.startsWith('/demo-payments/'))
       data = {
         amount: 9.25,
@@ -100,6 +94,25 @@ async function mockApi(page, options = {}) {
   return requests
 }
 
+function sessionPayment(paid, checkoutRequested = true) {
+  return {
+    id: 1,
+    order_number: checkoutRequested ? 'INV-FKPC-000001' : null,
+    table: '003',
+    created_at: order.created_at,
+    checkout_requested_at: checkoutRequested ? order.created_at : null,
+    closed_at: paid ? '2026-10-06T08:00:00Z' : null,
+    can_settle: !paid,
+    subtotal: 9.25,
+    total_amount: 9.25,
+    amount_due: paid ? 0 : 9.25,
+    paid_amount: paid ? 9.25 : 0,
+    orders: [{ ...order, status: 'completed' }],
+    items: order.items,
+    payment: { status: paid ? 'paid' : 'pending' },
+  }
+}
+
 async function login(page, role = 'cashier') {
   await page.goto('/login')
   await page.getByLabel('Username', { exact: true }).fill(role)
@@ -120,11 +133,12 @@ async function login(page, role = 'cashier') {
   ).toBeVisible()
 }
 
-async function checkout(page) {
+async function openCart(page) {
   await page.goto('/order/menu/table-token')
   await page.getByRole('button', { name: 'Add Pizza to cart', exact: true }).first().click()
   await page.goto('/order/checkout')
-  await expect(page.getByRole('button', { name: 'Confirm Order', exact: true })).toBeEnabled()
+  await expect(page).toHaveURL(/\/order\/cart$/)
+  await expect(page.getByRole('button', { name: 'Place Order', exact: true })).toBeEnabled()
 }
 
 test('customer manual table entry opens the menu without overflow', async ({ page }) => {
@@ -163,34 +177,37 @@ test('customer camera photo decodes the table QR and opens its menu', async ({ p
   await expect(page).toHaveURL(/\/order\/menu\/table-token$/)
 })
 
-test('customer cash checkout submits without personal information', async ({ page }) => {
+test('customer places an order without personal information', async ({ page }) => {
   const requests = await mockApi(page)
-  await checkout(page)
-  await expect(page.locator('#name, #phone')).toHaveCount(0)
-  await page.getByRole('button', { name: 'Confirm Order', exact: true }).click()
-  await expect(page).toHaveURL(/\/order\/track\/FKPC-000001$/)
+  await openCart(page)
+  await expect(page.locator('#name, #phone, #payment-method')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Place Order', exact: true }).click()
+  await expect(page).toHaveURL(/\/order\/track\/ORD-000001$/)
   const submitted = requests.find((r) => r.endpoint === '/orders' && r.body)
   expect(submitted.body.customer_name).toBe('Table 003')
   expect(submitted.body.payment_method).toBe('cash')
+  expect(submitted.body).not.toHaveProperty('customer_phone')
+  expect(submitted.body.items).toEqual([{ product_id: 1, quantity: 1, toppings: [] }])
+  await expect(page.getByRole('link', { name: 'Checkout', exact: true })).toBeVisible()
 })
 
-test('customer ACLEDA option submits the renamed method and opens payment', async ({ page }) => {
+test('customer requests one checkout for the visit without choosing a payment method', async ({
+  page,
+}) => {
   const requests = await mockApi(page)
-  await checkout(page)
-  await page.locator('#payment-method').selectOption('acleda')
-  await page.getByRole('button', { name: 'Confirm Order', exact: true }).click()
-  await expect(page).toHaveURL(/\/order\/payment\/FKPC-000001$/)
-  await expect(
-    page.getByRole('button', { name: 'Confirm test payment', exact: true }),
-  ).toBeVisible()
-  expect(requests.find((r) => r.endpoint === '/orders' && r.body).body.payment_method).toBe(
-    'acleda',
-  )
+  await page.goto('/order/track/ORD-000001')
+  await page.getByRole('link', { name: 'Checkout', exact: true }).click()
+  await expect(page).toHaveURL(/\/order\/checkout\/ORD-000001$/)
+  await expect(page.getByRole('heading', { name: 'Checkout requested', exact: true })).toBeVisible()
+  await expect(page.getByText('INV-FKPC-000001', { exact: false })).toBeVisible()
+  await expect(page.getByRole('combobox')).toHaveCount(0)
+  expect(requests.filter((r) => r.endpoint === '/orders/track/ORD-000001/checkout')).toHaveLength(1)
+  expect(requests.some((r) => r.endpoint.endsWith('/pay'))).toBe(false)
 })
 
-test('customer receipt exports an A6 PNG and supports keyboard dismissal', async ({ page }) => {
-  await mockApi(page)
-  await page.goto('/order/track/FKPC-000001')
+test('legacy order receipt exports an A6 PNG and supports keyboard dismissal', async ({ page }) => {
+  await mockApi(page, { legacyOrder: true })
+  await page.goto('/order/track/ORD-000001')
   await page.getByRole('button', { name: 'Download Receipt', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Receipt', exact: true })
   await expect(dialog).toBeVisible()
@@ -222,37 +239,56 @@ test('cashier cash payment validates tender and calculates change', async ({ pag
   const requests = await mockApi(page)
   await login(page)
   await page.goto('/cashier')
-  await page.getByRole('button').filter({ hasText: '#FKPC-000001' }).click()
-  await expect(
-    page.getByRole('button', { name: 'Receive Cash & Complete', exact: true }),
-  ).toBeDisabled()
+  await page.getByRole('button', { name: /Table 003/ }).click()
+  await expect(page.getByRole('button', { name: 'Confirm payment', exact: true })).toBeDisabled()
   await page.getByLabel('Cash received', { exact: true }).fill('9')
-  await expect(
-    page.getByRole('button', { name: 'Receive Cash & Complete', exact: true }),
-  ).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Confirm payment', exact: true })).toBeDisabled()
   await page.getByLabel('Cash received', { exact: true }).fill('10')
-  await expect(page.getByRole('dialog').getByText('$0.75', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'Receive Cash & Complete', exact: true }).click()
-  await expect(page.getByRole('dialog')).toHaveCount(0)
-  expect(requests.find((r) => r.endpoint.endsWith('/pay')).body.method).toBe('cash')
+  await expect(page.getByRole('dialog')).toContainText('Change: $0.75')
+  await page.getByRole('button', { name: 'Confirm payment', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: 'Receipt', exact: true })).toBeVisible()
+  expect(requests.find((r) => r.endpoint.endsWith('/pay')).body).toEqual({
+    method: 'cash',
+    expected_cents: 925,
+    request_key: expect.any(String),
+  })
 })
 
 test('cashier bank payment requires received-transfer verification', async ({ page }) => {
   const requests = await mockApi(page)
   await login(page)
   await page.goto('/cashier')
-  await page.getByRole('button').filter({ hasText: '#FKPC-000001' }).click()
-  await page.getByRole('button', { name: 'Bank', exact: true }).click()
-  await expect(
-    page.getByRole('button', { name: 'Confirm bank payment', exact: true }),
-  ).toBeDisabled()
+  await page.getByRole('button', { name: /Table 003/ }).click()
+  await page.getByLabel('Payment method', { exact: true }).selectOption('bank')
+  await expect(page.getByRole('button', { name: 'Confirm payment', exact: true })).toBeDisabled()
   await page.getByRole('checkbox').check()
-  await page.getByRole('button', { name: 'Confirm bank payment', exact: true }).click()
-  await expect(page.getByRole('dialog')).toHaveCount(0)
-  expect(requests.find((r) => r.endpoint.endsWith('/pay')).body.method).toBe('bank')
+  await page.getByRole('button', { name: 'Confirm payment', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: 'Receipt', exact: true })).toBeVisible()
+  expect(requests.find((r) => r.endpoint.endsWith('/pay')).body).toEqual({
+    method: 'bank',
+    expected_cents: 925,
+    request_key: expect.any(String),
+  })
 })
 
-test('cashier order and payment date filters reach the API', async ({ page }) => {
+test('cashier rejects malformed cash amounts before sending a payment', async ({ page }) => {
+  const requests = await mockApi(page)
+  await login(page)
+  await page.goto('/cashier')
+  await page.getByRole('button', { name: /Table 003/ }).click()
+  const cashReceived = page.getByLabel('Cash received', { exact: true })
+  const confirm = page.getByRole('button', { name: 'Confirm payment', exact: true })
+  for (const amount of ['', '-1', '9.251', '1e3', 'abc', 'Infinity', '9.24']) {
+    await cashReceived.fill(amount)
+    await expect(confirm).toBeDisabled()
+  }
+  expect(requests.filter((r) => r.endpoint.endsWith('/pay'))).toHaveLength(0)
+  await cashReceived.fill('9.25')
+  await expect(confirm).toBeEnabled()
+  await expect(page.getByRole('dialog')).toContainText('Change: $0.00')
+})
+
+test('cashier order date and payment status filters reach the API', async ({ page }) => {
   const requests = await mockApi(page)
   await login(page)
   await page.goto('/cashier/orders')
@@ -267,12 +303,17 @@ test('cashier order and payment date filters reach the API', async ({ page }) =>
     )
     .toBe(true)
   await page.goto('/cashier')
-  await page.locator('#payment-day').fill('2026-10-06')
+  await page.getByRole('button', { name: 'Paid', exact: true }).click()
   await expect
     .poll(() =>
-      requests.some((r) => r.endpoint === '/cashier/payments' && r.query.date === '2026-10-06'),
+      requests.some((r) => r.endpoint === '/cashier/invoices' && r.query.status === 'closed'),
     )
     .toBe(true)
+  await expect(page.getByRole('button', { name: 'Paid', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  await expect(page.getByRole('button', { name: /Table 003/ })).toHaveCount(0)
 })
 
 test('staff logout still returns to login when the API is offline', async ({ page }) => {
@@ -287,11 +328,16 @@ test('language selector persists Khmer and Korean across reloads', async ({ page
   await mockApi(page)
   await page.goto('/login')
   for (const code of ['km', 'ko', 'en']) {
-    await page.locator('.language-selector select').selectOption(code)
+    await page.getByRole('button', { name: 'Language', exact: true }).click()
+    await page.locator('.language-menu button').nth(['en', 'km', 'ko'].indexOf(code)).click()
     await expect(page.locator('html')).toHaveAttribute('lang', code)
     const heading = translations[code]?.['Welcome back'] || 'Welcome back'
     await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible()
     await page.reload()
-    await expect(page.locator('.language-selector select')).toHaveValue(code)
+    await page.getByRole('button', { name: 'Language', exact: true }).click()
+    await expect(
+      page.locator('.language-menu button').nth(['en', 'km', 'ko'].indexOf(code)),
+    ).toHaveAttribute('aria-checked', 'true')
+    await page.keyboard.press('Escape')
   }
 })

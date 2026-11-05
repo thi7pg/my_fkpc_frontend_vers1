@@ -32,7 +32,17 @@ const routes = [
       {
         path: 'checkout',
         name: 'checkout',
-        component: () => import('../pages/customer/CheckoutPage.vue'),
+        redirect: { name: 'cart' },
+      },
+      {
+        path: 'checkout/:orderNumber',
+        name: 'session-checkout',
+        component: () => import('../pages/customer/Checkout.vue'),
+      },
+      {
+        path: 'receipt/:orderNumber',
+        name: 'receipt',
+        component: () => import('../pages/customer/Receipt.vue'),
       },
       {
         path: 'payment/:orderNumber',

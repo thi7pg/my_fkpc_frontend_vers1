@@ -13,6 +13,7 @@ const toast = useToast()
 
 const users = ref([])
 const loading = ref(true)
+const loadError = ref('')
 
 const modalOpen = ref(false)
 const editing = ref(null)
@@ -32,11 +33,12 @@ const deleting = ref(false)
 
 async function load() {
   loading.value = true
+  loadError.value = ''
   try {
     const res = await adminService.users.list()
     users.value = res.data
-  } catch (e) {
-    toast.error(t(e.message))
+  } catch {
+    loadError.value = 'Could not load staff users.'
   } finally {
     loading.value = false
   }
@@ -118,6 +120,17 @@ async function doDelete() {
     <div v-if="loading" class="flex flex-col gap-3">
       <SkeletonLoader variant="line" :count="4" />
     </div>
+    <div v-else-if="loadError" role="alert">
+      <EmptyState :icon="UsersIcon" :title="loadError">
+        <button
+          type="button"
+          class="mt-4 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-500"
+          @click="load"
+        >
+          {{ $t('Try again') }}
+        </button>
+      </EmptyState>
+    </div>
     <EmptyState
       v-else-if="users.length === 0"
       :icon="UsersIcon"
@@ -176,9 +189,9 @@ async function doDelete() {
           />
         </div>
         <div>
-          <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200"
-            >Username</label
-          >
+          <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">{{
+            $t('Username')
+          }}</label>
           <input
             v-model="form.username"
             type="text"

@@ -9,7 +9,6 @@ import {
   HashtagIcon,
 } from '@heroicons/vue/24/outline'
 import jsQR from 'jsqr'
-import { t } from '../../languages'
 const router = useRouter()
 const route = useRoute()
 const scanInput = ref(null)
@@ -51,7 +50,7 @@ function openMenu(value) {
     else if (/^https?:/i.test(token)) throw new Error('Invalid menu link')
   } catch {
     if (/^https?:/i.test(token)) {
-      scanError.value = t('This QR code is not a table menu.')
+      scanError.value = 'This QR code is not a table menu.'
       return false
     }
   }
@@ -87,7 +86,7 @@ async function startScan() {
   tableEntryOpen.value = false
   // Mobile file capture can open the native camera even on a LAN HTTP page.
   if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
-    scanHint.value = t('Take a clear photo of the QR code, then tap Use Photo to open the menu.')
+    scanHint.value = 'Take a clear photo of the QR code, then tap Use Photo to open the menu.'
     scanInput.value?.click()
     return
   }
@@ -126,11 +125,10 @@ async function startScan() {
   } catch (error) {
     if (version !== scanVersion) return
     stopScan()
-    scanError.value = t(
+    scanError.value =
       error.name === 'NotAllowedError'
         ? 'Allow camera access to scan your table.'
-        : 'Camera unavailable. Try taking a QR photo.',
-    )
+        : 'Camera unavailable. Try taking a QR photo.'
   }
 }
 async function readQrImage(event) {
@@ -173,9 +171,8 @@ async function readQrImage(event) {
     if (!result) throw new Error('No QR')
     openMenu(result)
   } catch {
-    scanError.value = t(
-      'QR code not detected. Move closer and take a sharp photo, or enter your table number.',
-    )
+    scanError.value =
+      'QR code not detected. Move closer and take a sharp photo, or enter your table number.'
   } finally {
     URL.revokeObjectURL(objectUrl)
     readingPhoto.value = false
@@ -239,9 +236,9 @@ function trackOrder() {
         :aria-label="$t('Scan table menu')"
         @change="readQrImage"
       />
-      <p v-if="scanError" class="home-scan-error" role="alert">{{ scanError }}</p>
+      <p v-if="scanError" class="home-scan-error" role="alert">{{ $t(scanError) }}</p>
       <p v-if="scanHint || readingPhoto" class="home-scan-error" role="status">
-        {{ readingPhoto ? $t('Reading QR photo…') : scanHint }}
+        {{ readingPhoto ? $t('Reading QR photo…') : $t(scanHint) }}
       </p>
     </section>
     <div

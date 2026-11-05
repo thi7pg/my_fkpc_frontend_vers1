@@ -25,6 +25,8 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks(id) {
+            if (id.includes('node_modules/exceljs/')) return 'report-excel'
+            if (id.includes('node_modules/jspdf')) return 'report-pdf'
             if (id.includes('node_modules')) {
               return 'vendor'
             }

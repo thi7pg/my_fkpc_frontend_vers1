@@ -73,7 +73,7 @@ const links = computed(() => {
   <aside
     class="hidden w-60 shrink-0 flex-col border-r border-slate-200 bg-white lg:flex dark:border-slate-800 dark:bg-slate-900"
   >
-    <div class="flex h-16 items-center gap-2 border-b border-slate-100 px-5 dark:border-slate-800">
+    <div class="flex h-16 shrink-0 items-center gap-2 border-b border-slate-100 px-5 dark:border-slate-800">
       <img
         v-if="restaurant.logo && !logoFailed"
         :src="restaurant.logo"
@@ -92,7 +92,7 @@ const links = computed(() => {
       }}</span>
     </div>
 
-    <nav class="flex-1 space-y-1 p-3">
+    <nav class="min-h-0 flex-1 space-y-1 overflow-y-auto p-3">
       <RouterLink
         v-for="link in links"
         :key="link.name"
@@ -155,7 +155,7 @@ const links = computed(() => {
             :key="link.name"
             :to="{ name: link.name }"
             class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-            active-class="!bg-primary-50 !text-primary-700 dark:!bg-primary-500/10 dark:!text-primary-400"
+            exact-active-class="!bg-primary-50 !text-primary-700 dark:!bg-primary-500/10 dark:!text-primary-400"
             @click="emit('close')"
           >
             <component :is="link.icon" class="h-5 w-5 shrink-0" aria-hidden="true" />

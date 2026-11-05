@@ -4,10 +4,6 @@ export const adminService = {
   dashboard() {
     return api.get('/admin/dashboard')
   },
-  activityLogs(params = {}) {
-    return api.get('/admin/activity-logs', { params })
-  },
-
   getSettings() {
     return api.get('/admin/settings')
   },
@@ -18,9 +14,6 @@ export const adminService = {
   tables: {
     list(params = {}) {
       return api.get('/admin/tables', { params })
-    },
-    get(id) {
-      return api.get(`/admin/tables/${id}`)
     },
     create(payload) {
       return api.post('/admin/tables', payload)

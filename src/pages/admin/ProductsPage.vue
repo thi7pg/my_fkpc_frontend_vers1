@@ -1,6 +1,6 @@
 <script setup>
 import { t } from '../../languages'
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useToast } from 'vue-toastification'
 import {
   PlusIcon,
@@ -14,6 +14,7 @@ import { useProductsStore } from '../../stores/products'
 import { useCategoriesStore } from '../../stores/categories'
 import { toFormData } from '../../utils/formData'
 import { formatCurrency } from '../../utils/format'
+import ProductOptionsEditor from '../../components/staff/ProductOptionsEditor.vue'
 import Modal from '../../components/ui/Modal.vue'
 import ConfirmDialog from '../../components/ui/ConfirmDialog.vue'
 import SkeletonLoader from '../../components/ui/SkeletonLoader.vue'
@@ -36,8 +37,20 @@ const form = ref({
   available: true,
   preparation_time: 15,
   image: null,
+  sizes: [],
+  toppings: [],
+  discount_percent: 0,
 })
 const saving = ref(false)
+const uploadPreview = ref('')
+const imagePreview = computed(() => uploadPreview.value || editing.value?.image || '')
+watch(modalOpen, () => {
+  if (uploadPreview.value) URL.revokeObjectURL(uploadPreview.value)
+  uploadPreview.value = ''
+})
+onUnmounted(() => {
+  if (uploadPreview.value) URL.revokeObjectURL(uploadPreview.value)
+})
 
 const confirmOpen = ref(false)
 const deleteTarget = ref(null)
@@ -71,6 +84,9 @@ function openCreate() {
     available: true,
     preparation_time: 15,
     image: null,
+    sizes: [],
+    toppings: [],
+    discount_percent: 0,
   }
   modalOpen.value = true
 }
@@ -82,6 +98,9 @@ function openEdit(product) {
     name: product.name,
     description: product.description ?? '',
     price: product.price,
+    sizes: (product.sizes || []).map((option) => ({ ...option })),
+    toppings: (product.toppings || []).map((option) => ({ ...option })),
+    discount_percent: product.discount_percent || 0,
     available: product.available,
     preparation_time: product.preparation_time ?? 15,
     image: null,
@@ -90,13 +109,20 @@ function openEdit(product) {
 }
 
 function onFileChange(event) {
+  if (uploadPreview.value) URL.revokeObjectURL(uploadPreview.value)
   form.value.image = event.target.files[0] ?? null
+  uploadPreview.value = form.value.image ? URL.createObjectURL(form.value.image) : ''
 }
 
 async function save() {
+  if (saving.value) return
   saving.value = true
   try {
-    const payload = toFormData(form.value)
+    const payload = toFormData({
+      ...form.value,
+      sizes: JSON.stringify(form.value.sizes || []),
+      toppings: JSON.stringify(form.value.toppings || []),
+    })
     if (editing.value) {
       await adminService.products.update(editing.value.id, payload)
       toast.success(t('Product updated'))
@@ -203,6 +229,18 @@ async function doDelete() {
             {{ product.name }}
           </p>
           <p class="text-xs text-slate-400">{{ product.category?.name }}</p>
+          <p
+            v-if="product.sizes?.length || product.toppings?.length || product.discount_percent"
+            class="text-xs text-slate-500"
+          >
+            {{ product.sizes?.map((size) => size.name).join(' / ') }}
+            <span v-if="product.toppings?.length">
+              · {{ product.toppings.length }} {{ $t('Toppings') }}</span
+            >
+            <span v-if="Number(product.discount_percent) > 0">
+              · -{{ product.discount_percent }}%</span
+            >
+          </p>
           <div class="mt-auto flex items-center justify-between pt-2">
             <span class="text-sm font-bold text-primary-600 dark:text-primary-400">{{
               formatCurrency(product.price)
@@ -236,103 +274,160 @@ async function doDelete() {
       </div>
     </div>
 
-    <Modal v-model="modalOpen" :title="editing ? $t('Edit Product') : $t('Add Product')">
-      <form class="flex flex-col gap-4" @submit.prevent="save">
-        <div>
-          <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">{{
-            $t('Category')
-          }}</label>
-          <select
-            v-model="form.category_id"
-            required
-            class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-primary-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900"
+    <Modal v-model="modalOpen" size="xl" :title="editing ? $t('Edit Product') : $t('Add Product')">
+      <form id="product-editor" class="grid gap-6 md:grid-cols-2" @submit.prevent="save">
+        <div class="min-w-0 space-y-5">
+          <div
+            class="flex items-center gap-2 text-sm font-bold text-primary-700 dark:text-primary-300"
           >
-            <option v-for="c in categoriesStore.categories" :key="c.id" :value="c.id">
-              {{ c.name }}
-            </option>
-          </select>
-        </div>
-        <div>
-          <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">{{
-            $t('Name')
-          }}</label>
-          <input
-            v-model="form.name"
-            type="text"
-            required
-            class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-primary-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900"
-          />
-        </div>
-        <div>
-          <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">{{
-            $t('Description')
-          }}</label>
-          <textarea
-            v-model="form.description"
-            rows="2"
-            class="w-full resize-none rounded-xl border border-slate-200 p-3 text-sm focus:border-primary-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900"
-          />
-        </div>
-        <div class="grid grid-cols-2 gap-3">
+            <PencilIcon class="h-4 w-4" aria-hidden="true" />{{ $t('Product details') }}
+          </div>
           <div>
             <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">{{
-              $t('Price')
+              $t('Category')
+            }}</label>
+            <select
+              v-model="form.category_id"
+              required
+              class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-primary-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900"
+            >
+              <option v-for="c in categoriesStore.categories" :key="c.id" :value="c.id">
+                {{ c.name }}
+              </option>
+            </select>
+          </div>
+          <div>
+            <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">{{
+              $t('Name')
             }}</label>
             <input
-              v-model.number="form.price"
-              type="number"
-              min="0"
-              step="0.01"
+              v-model="form.name"
+              type="text"
               required
               class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-primary-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900"
             />
           </div>
           <div>
             <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">{{
-              $t('Prep Time (min)')
+              $t('Description')
             }}</label>
+            <textarea
+              v-model="form.description"
+              rows="2"
+              class="w-full resize-none rounded-xl border border-slate-200 p-3 text-sm focus:border-primary-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900"
+            />
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">{{
+                $t('Price')
+              }}</label>
+              <input
+                v-model.number="form.price"
+                type="number"
+                min="0"
+                step="0.01"
+                required
+                class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-primary-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900"
+              />
+            </div>
+            <div>
+              <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">{{
+                $t('Prep Time (min)')
+              }}</label>
+              <input
+                v-model.number="form.preparation_time"
+                type="number"
+                min="1"
+                class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-primary-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900"
+              />
+            </div>
+          </div>
+        </div>
+        <div
+          class="min-w-0 space-y-5 rounded-2xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/40"
+        >
+          <div>
+            <label
+              for="product-image"
+              class="mb-3 block text-sm font-semibold text-slate-700 dark:text-slate-200"
+              >{{ $t('Image') }}</label
+            >
+            <div
+              class="mb-3 flex h-40 items-center justify-center overflow-hidden rounded-xl border border-dashed border-primary-200 bg-white dark:border-slate-700 dark:bg-slate-900"
+            >
+              <img
+                v-if="imagePreview"
+                :src="imagePreview"
+                :alt="form.name || $t('Image')"
+                class="h-full w-full object-contain"
+              />
+              <CakeIcon v-else class="h-12 w-12 text-primary-200" aria-hidden="true" />
+            </div>
             <input
-              v-model.number="form.preparation_time"
+              id="product-image"
+              type="file"
+              accept="image/*"
+              class="w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-primary-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-primary-700 dark:text-slate-300 dark:file:bg-primary-500/10 dark:file:text-primary-400"
+              @change="onFileChange"
+            />
+          </div>
+          <ProductOptionsEditor v-model="form.sizes" label="Sizes" />
+          <p class="text-xs text-slate-500">{{ $t('Size prices replace the base price.') }}</p>
+          <ProductOptionsEditor v-model="form.toppings" label="Toppings" />
+          <label class="block text-sm font-medium"
+            >{{ $t('Discount (%)') }}
+            <input
+              v-model.number="form.discount_percent"
               type="number"
-              min="1"
-              class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-primary-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900"
+              min="0"
+              max="100"
+              step="0.01"
+              class="mt-2 w-full rounded-xl border border-slate-200 bg-white p-3 focus:border-primary-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900"
+            />
+          </label>
+          <div
+            class="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900"
+          >
+            <label
+              for="product-available"
+              class="text-sm font-medium text-slate-700 dark:text-slate-200"
+              >{{ $t('Available') }}</label
+            >
+            <input
+              id="product-available"
+              v-model="form.available"
+              type="checkbox"
+              class="h-5 w-5 rounded text-primary-600 focus:ring-primary-500"
             />
           </div>
         </div>
-        <div>
-          <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">{{
-            $t('Image')
-          }}</label>
-          <input
-            type="file"
-            accept="image/*"
-            class="w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-primary-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-primary-700 dark:text-slate-300 dark:file:bg-primary-500/10 dark:file:text-primary-400"
-            @change="onFileChange"
-          />
-        </div>
-        <div class="flex items-center justify-between">
-          <label class="text-sm font-medium text-slate-700 dark:text-slate-200">{{
-            $t('Available')
-          }}</label>
-          <input
-            v-model="form.available"
-            type="checkbox"
-            class="h-5 w-5 rounded text-primary-600 focus:ring-primary-500"
-          />
-        </div>
-        <button
-          type="submit"
-          :disabled="saving"
-          class="mt-2 w-full rounded-xl bg-primary-600 py-2.5 text-sm font-semibold text-white hover:bg-primary-500 disabled:opacity-50"
-        >
-          {{ saving ? $t('Saving…') : $t('Save Product') }}
-        </button>
       </form>
+      <template #footer>
+        <div class="flex items-center justify-end gap-3">
+          <button
+            type="button"
+            :disabled="saving"
+            class="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+            @click="modalOpen = false"
+          >
+            {{ $t('Cancel') }}
+          </button>
+          <button
+            type="submit"
+            form="product-editor"
+            :disabled="saving"
+            class="rounded-xl bg-primary-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm shadow-primary-200 hover:bg-primary-500 disabled:opacity-50 dark:shadow-none"
+          >
+            {{ saving ? $t('Saving…') : $t('Save Product') }}
+          </button>
+        </div>
+      </template>
     </Modal>
 
     <ConfirmDialog
       v-model="confirmOpen"
-      :title="$t('Delete product ?')"
+      :title="$t('Delete product?')"
       :message="$t('This will permanently remove {name}.', { name: deleteTarget?.name })"
       danger
       :loading="deleting"

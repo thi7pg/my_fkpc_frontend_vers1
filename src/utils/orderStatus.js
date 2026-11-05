@@ -17,12 +17,12 @@ export const STATUS_LABELS = {
 }
 
 export const STATUS_STYLES = {
-  pending: 'bg-warning-50 text-warning-600 dark:bg-warning-500/10',
-  confirmed: 'bg-primary-50 text-primary-600 dark:bg-primary-500/10',
-  preparing: 'bg-primary-50 text-primary-600 dark:bg-primary-500/10',
-  ready: 'bg-success-50 text-success-600 dark:bg-success-500/10',
+  pending: 'bg-warning-50 text-warning-600 dark:bg-warning-500/10 dark:text-warning-500',
+  confirmed: 'bg-primary-50 text-primary-600 dark:bg-primary-500/10 dark:text-primary-400',
+  preparing: 'bg-primary-50 text-primary-600 dark:bg-primary-500/10 dark:text-primary-400',
+  ready: 'bg-success-50 text-success-600 dark:bg-success-500/10 dark:text-success-500',
   completed: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
-  cancelled: 'bg-danger-50 text-danger-600 dark:bg-danger-500/10',
+  cancelled: 'bg-danger-50 text-danger-600 dark:bg-danger-500/10 dark:text-danger-500',
 }
 
 export function nextStatus(status) {

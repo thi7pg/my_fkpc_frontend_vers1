@@ -82,38 +82,38 @@ onUnmounted(() => {
     class="card mx-auto flex max-w-md flex-col items-center gap-4 overflow-hidden border border-slate-200 p-6 text-center"
   >
     <div class="-mx-6 -mt-6 mb-2 w-[calc(100%+3rem)] bg-[#12335b] px-6 py-5 text-white">
-      <p class="text-xs uppercase tracking-widest text-white/70">Bank payment</p>
+      <p class="text-xs uppercase tracking-widest text-white/70">{{ $t('Bank payment') }}</p>
       <h1 class="mt-1 text-2xl font-semibold">ACLEDA QR</h1>
     </div>
-    <p class="text-xs text-slate-500">Test payment — no money transferred.</p>
+    <p class="text-xs text-slate-500">{{ $t('Test payment — no money transferred.') }}</p>
     <p>{{ route.params.orderNumber }}</p>
     <template v-if="payment">
       <strong class="text-2xl">{{
         formatCurrency(payment.amount, cart.restaurant?.currency || 'USD')
       }}</strong>
-      <p v-if="payment.status === 'paid'" role="status">Test payment confirmed.</p>
-      <p v-else-if="payment.expired" role="status">QR expired. No payment was made.</p>
+      <p v-if="payment.status === 'paid'" role="status">{{ $t('Test payment confirmed.') }}</p>
+      <p v-else-if="payment.expired" role="status">{{ $t('QR expired. No payment was made.') }}</p>
       <template v-else>
         <img
           :src="'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(payment.qr_svg)"
-          alt="Test payment QR"
+          :alt="$t('Test payment QR')"
           width="240"
           height="240"
         />
-        <p class="text-sm">Awaiting confirmation. QR expires in 10 minutes.</p>
+        <p class="text-sm">{{ $t('Awaiting confirmation. QR expires in 10 minutes.') }}</p>
         <button class="customer-primary" :disabled="busy" @click="confirm">
-          {{ busy ? 'Confirming...' : 'Confirm test payment' }}
+          {{ $t(busy ? 'Confirming...' : 'Confirm test payment') }}
         </button>
       </template>
     </template>
-    <p v-if="error" role="alert" class="text-red-600">{{ error }}</p>
+    <p v-if="error" role="alert" class="text-red-600">{{ $t(error) }}</p>
     <button
       class="customer-primary"
       @click="
         router.push({ name: 'order-tracking', params: { orderNumber: route.params.orderNumber } })
       "
     >
-      Track order
+      {{ $t('Track order') }}
     </button>
   </section>
 </template>

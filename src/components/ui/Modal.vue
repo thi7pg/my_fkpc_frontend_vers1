@@ -5,7 +5,7 @@ import { ref, watch, nextTick, onUnmounted } from 'vue'
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   title: { type: String, default: '' },
-  size: { type: String, default: 'md' }, // sm | md | lg
+  size: { type: String, default: 'md' },
 })
 const emit = defineEmits(['update:modelValue'])
 const panel = ref(null)
@@ -73,7 +73,7 @@ watch(
 )
 onUnmounted(restorePage)
 
-const sizes = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl' }
+const sizes = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl' }
 
 function close() {
   emit('update:modelValue', false)
@@ -95,10 +95,12 @@ function close() {
           aria-modal="true"
           :aria-label="$t(title || 'Confirm')"
           tabindex="-1"
-          class="relative w-full animate-slide-up rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900"
+          class="relative flex max-h-[calc(100dvh-2rem)] w-full animate-slide-up flex-col overflow-hidden rounded-2xl bg-white shadow-xl dark:bg-slate-900"
           :class="sizes[size]"
         >
-          <div class="mb-4 flex items-center justify-between">
+          <div
+            class="flex shrink-0 items-center justify-between gap-4 border-b border-slate-100 px-6 py-5 dark:border-slate-800"
+          >
             <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
               {{ $t(title) }}
             </h3>
@@ -110,7 +112,13 @@ function close() {
               <XMarkIcon class="h-5 w-5" />
             </button>
           </div>
-          <slot />
+          <div class="min-h-0 overflow-y-auto p-6"><slot /></div>
+          <div
+            v-if="$slots.footer"
+            class="shrink-0 border-t border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-950"
+          >
+            <slot name="footer" />
+          </div>
         </div>
       </div>
     </Transition>

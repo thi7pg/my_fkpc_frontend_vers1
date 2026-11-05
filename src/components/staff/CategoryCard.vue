@@ -1,8 +1,15 @@
 <script setup>
+import { computed } from 'vue'
 import { PencilIcon, TrashIcon, TagIcon } from '@heroicons/vue/24/outline'
 
-defineProps({ category: { type: Object, required: true } })
+const props = defineProps({ category: { type: Object, required: true } })
 defineEmits(['edit', 'delete'])
+
+const productCount = computed(
+  () =>
+    props.category.products_count ??
+    (Array.isArray(props.category.products) ? props.category.products.length : null),
+)
 </script>
 
 <template>
@@ -22,7 +29,7 @@ defineEmits(['edit', 'delete'])
     <div class="flex-1">
       <p class="font-semibold text-slate-900 dark:text-slate-100">{{ category.name }}</p>
       <p class="text-xs text-slate-500 dark:text-slate-400">
-        {{ category.products?.length ?? 0 }} {{ $t('products ·') }}
+        <span v-if="productCount !== null">{{ productCount }} {{ $t('products ·') }} </span>
         <span :class="category.is_active ? 'text-success-600' : 'text-slate-400'">
           {{ category.is_active ? $t('Active') : $t('Inactive') }}
         </span>

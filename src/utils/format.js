@@ -1,3 +1,5 @@
+import { intlLocale } from '../languages'
+
 export function formatCurrency(amount, currency = 'USD') {
   const value = Number(amount) || 0
   try {
@@ -26,4 +28,3 @@ export function minutesSince(value, now = Date.now()) {
   if (!Number.isFinite(timestamp)) return 0
   return Math.max(0, Math.floor((Number(now) - timestamp) / 60000))
 }
-import { intlLocale } from '../languages'

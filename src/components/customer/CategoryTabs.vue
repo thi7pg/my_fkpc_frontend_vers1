@@ -1,39 +1,30 @@
 <script setup>
-import { Squares2X2Icon, FireIcon, SparklesIcon, ListBulletIcon } from '@heroicons/vue/24/outline'
-import PizzaIcon from '../ui/PizzaIcon.vue'
-import DrinkIcon from '../ui/DrinkIcon.vue'
-import BurgerIcon from '../ui/BurgerIcon.vue'
 defineProps({
   categories: { type: Array, required: true },
   modelValue: { type: [Number, String], default: 'all' },
 })
 defineEmits(['update:modelValue'])
-function categoryIcon(name) {
-  if (/pizza/i.test(name)) return PizzaIcon
-  if (/chicken|korean|spicy/i.test(name)) return FireIcon
-  if (/drink|beverage/i.test(name)) return DrinkIcon
-  if (/fast\s*food|burger|snack|fries/i.test(name)) return BurgerIcon
-  if (/signature/i.test(name)) return SparklesIcon
-  return ListBulletIcon
-}
 </script>
 <template>
-  <div class="customer-categories" :aria-label="$t('Menu categories')">
+  <div
+    class="flex items-center gap-2 overflow-x-auto px-1 py-1"
+    role="group"
+    :aria-label="$t('Menu categories')"
+  >
     <button
-      :class="{ selected: modelValue === 'all' }"
-      :aria-pressed="modelValue === 'all'"
-      @click="$emit('update:modelValue', 'all')"
-    >
-      <span><Squares2X2Icon /></span>{{ $t('All') }}
-    </button>
-    <button
-      v-for="category in categories"
+      v-for="category in [{ id: 'all', name: $t('All') }, ...categories]"
       :key="category.id"
-      :class="{ selected: modelValue === category.id }"
+      type="button"
+      class="min-h-11 shrink-0 rounded-full border px-5 py-2.5 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
+      :class="
+        modelValue === category.id
+          ? 'border-primary-600 bg-primary-600 text-white'
+          : 'border-slate-200 bg-white text-slate-600 hover:border-primary-200 hover:bg-primary-50'
+      "
       :aria-pressed="modelValue === category.id"
       @click="$emit('update:modelValue', category.id)"
     >
-      <span><component :is="categoryIcon(category.name)" /></span>{{ category.name }}
+      {{ category.name }}
     </button>
   </div>
 </template>

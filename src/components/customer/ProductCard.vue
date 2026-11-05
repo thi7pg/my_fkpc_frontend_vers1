@@ -1,6 +1,7 @@
 <script setup>
+import { productPrice } from '../../utils/productOptions'
 import { t } from '../../languages'
-import { ClockIcon, PlusIcon, FireIcon } from '@heroicons/vue/24/outline'
+import { PlusIcon, FireIcon } from '@heroicons/vue/24/outline'
 import { useRouter } from 'vue-router'
 import { formatCurrency } from '../../utils/format'
 import { useCartStore } from '../../stores/cart'
@@ -18,40 +19,58 @@ function openDetail() {
 function quickAdd(event) {
   event.stopPropagation()
   if (!props.product.available) return
+  if (props.product.sizes?.length || props.product.toppings?.length) {
+    openDetail()
+    return
+  }
   cart.addItem(props.product, 1)
   toast.success(t('Added {name} to cart', { name: props.product.name }))
 }
 </script>
 <template>
-  <article class="food-card">
+  <article class="surface-card flex min-w-0 flex-col overflow-hidden">
     <button
-      class="food-card-image"
+      class="group relative block aspect-[1.48] w-full overflow-hidden bg-primary-50"
       :aria-label="$t('View {name}', { name: product.name })"
       @click="openDetail"
     >
-      <img v-if="product.image" :src="product.image" :alt="product.name" loading="lazy" />
-      <span v-else class="food-placeholder"
-        ><FireIcon /><span>{{ $t('Made to crave') }}</span></span
+      <img
+        v-if="product.image"
+        :src="product.image"
+        :alt="product.name"
+        loading="lazy"
+        class="h-full w-full object-cover transition duration-300 group-hover:scale-105 motion-reduce:transition-none"
+      />
+      <span
+        v-else
+        class="flex h-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-primary-50 to-orange-100 text-primary-600"
+        ><FireIcon class="h-12 w-12 opacity-70" /><span class="text-[10px] font-semibold">{{
+          $t('Made to crave')
+        }}</span></span
       >
-      <span v-if="!product.available" class="food-unavailable">{{ $t('Unavailable') }}</span>
+      <span
+        v-if="!product.available"
+        class="absolute inset-0 grid place-items-center bg-white/70 text-sm font-bold text-slate-600"
+        >{{ $t('Unavailable') }}</span
+      >
     </button>
-    <div class="food-card-content">
-      <button class="food-card-title" @click="openDetail">
-        <h3>{{ product.name }}</h3>
+    <div class="flex flex-1 flex-col gap-4 p-3 sm:p-4">
+      <button class="text-left" @click="openDetail">
+        <h3 class="line-clamp-2 text-sm leading-snug font-bold text-slate-950 sm:text-base">
+          {{ product.name }}
+        </h3>
       </button>
-      <p v-if="product.description" class="food-description">{{ product.description }}</p>
-      <span v-if="product.preparation_time" class="food-time"
-        ><ClockIcon />{{ product.preparation_time }} {{ $t('min') }}</span
-      >
-      <div class="food-card-bottom">
-        <strong>{{ formatCurrency(product.price, currency) }}</strong
-        ><button
-          class="food-add"
+      <div class="mt-auto flex items-center justify-between gap-2">
+        <strong class="min-w-0 break-words text-base font-bold text-primary-600 sm:text-lg">{{
+          formatCurrency(productPrice(product, product.sizes?.[0]?.name), currency)
+        }}</strong>
+        <button
+          class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary-600 text-white transition hover:bg-primary-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 disabled:bg-slate-200 disabled:text-slate-400"
           :aria-label="$t('Add {name} to cart', { name: product.name })"
           :disabled="!product.available"
           @click="quickAdd"
         >
-          <PlusIcon />
+          <PlusIcon class="h-6 w-6" />
         </button>
       </div>
     </div>

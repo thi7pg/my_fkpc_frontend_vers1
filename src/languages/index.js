@@ -10,7 +10,7 @@ let saved = 'en'
 try {
   saved = localStorage.getItem('language') || 'en'
 } catch {
-  /* Use English. */
+  // Keep the selected language in memory when browser storage is unavailable.
 }
 export const locale = ref(languages.some((language) => language.code === saved) ? saved : 'en')
 export function setLocale(code) {
@@ -19,7 +19,7 @@ export function setLocale(code) {
   try {
     localStorage.setItem('language', code)
   } catch {
-    // The selected language still works when browser storage is unavailable.
+    // Keep the selected language in memory when browser storage is unavailable.
   }
   document.documentElement.lang = code
 }

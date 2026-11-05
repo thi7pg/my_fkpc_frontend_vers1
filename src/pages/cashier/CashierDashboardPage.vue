@@ -1,499 +1,788 @@
 <script setup>
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import {
+  ArrowPathIcon,
+  DocumentTextIcon,
+  BanknotesIcon,
+  CheckCircleIcon,
+} from '@heroicons/vue/24/outline'
 import { t } from '../../languages'
-import { ref, computed, onMounted, watch } from 'vue'
-import { useToast } from 'vue-toastification'
-import { BanknotesIcon, PrinterIcon } from '@heroicons/vue/24/outline'
 import { cashierService } from '../../services/cashierService'
-import { orderService } from '../../services/orderService'
-import { formatCurrency as money, formatDateTime } from '../../utils/format'
 import { useRestaurantStore } from '../../stores/restaurant'
-import Modal from '../../components/ui/Modal.vue'
-import EmptyState from '../../components/ui/EmptyState.vue'
-import SkeletonLoader from '../../components/ui/SkeletonLoader.vue'
+import { formatCurrency, formatDateTime } from '../../utils/format'
 import { createReceiptImage } from '../../utils/receiptImage'
+import Modal from '../../components/ui/Modal.vue'
+import InvoiceMerge from '../../components/staff/InvoiceMerge.vue'
+import { createRequestKey } from '../../utils/requestKey'
 
-const toast = useToast()
 const restaurant = useRestaurantStore()
-const formatCurrency = (amount) => money(amount, restaurant.settings.currency || 'USD')
-const search = ref('')
+const money = (value) => formatCurrency(value, restaurant.settings.currency || 'USD')
+const invoices = ref([])
+const status = ref('open')
+const selectedDate = ref('')
+const savingReceipt = ref(false)
 const page = ref(1)
 const meta = ref(null)
-const cashReceived = ref('')
-const cashError = ref('')
+const loading = ref(false)
+const error = ref('')
+const selectedInvoice = ref(null)
+const modalOpen = ref(false)
 const paymentMethod = ref('cash')
+const cashReceived = ref('')
 const bankVerified = ref(false)
-const visiblePayments = computed(() =>
-  payments.value.filter((payment) =>
-    String(payment.order_number).toLowerCase().includes(search.value.trim().toLowerCase()),
-  ),
+const submittingPayment = ref(false)
+const paymentStale = ref(false)
+const paymentRequestKey = ref(null)
+const pendingPayment = ref(null)
+const selectingTables = ref(false)
+const selectedIds = ref([])
+const mergeOpen = ref(false)
+function openMerge() {
+  modalOpen.value = false
+  mergeOpen.value = true
+}
+function toggleSelection() {
+  selectingTables.value = !selectingTables.value
+  selectedIds.value = []
+}
+function invoicesMerged(invoice) {
+  selectedIds.value = []
+  selectingTables.value = false
+  status.value = 'open'
+  page.value = 1
+  openCheckout(invoice)
+}
+function isPaid(invoice) {
+  return invoice?.payment?.status === 'paid' || !!invoice?.closed_at
+}
+const search = ref('')
+const visibleInvoices = computed(() => {
+  const query = search.value.trim().toLowerCase()
+  return invoices.value.filter((invoice) =>
+    `${invoice.table} ${invoice.order_number}`.toLowerCase().includes(query),
+  )
+})
+const statusFilters = [
+  { value: 'open', label: 'Pending' },
+  { value: 'closed', label: 'Paid' },
+]
+const checkoutStatuses = {
+  paid: {
+    label: 'Paid',
+    action: 'View receipt',
+  },
+  ready: {
+    label: 'Ready for payment',
+    action: 'Take payment',
+  },
+  preparing: {
+    label: 'Food in progress',
+    action: 'View details',
+  },
+}
+
+function checkoutStatus(invoice) {
+  if (isPaid(invoice)) return checkoutStatuses.paid
+  if (invoice.checkout_requested_at && invoice.can_settle)
+    return { label: 'Checkout requested', action: 'Take payment' }
+  return invoice.can_settle ? checkoutStatuses.ready : checkoutStatuses.preparing
+}
+
+let requestVersion = 0
+const amountDueCents = computed(() =>
+  Math.round(Number(selectedInvoice.value?.amount_due || 0) * 100),
 )
-const pageTotal = computed(
-  () =>
-    payments.value.reduce((sum, payment) => sum + Math.round(Number(payment.amount) * 100), 0) /
-    100,
-)
-const dueCents = computed(() => Math.round(Number(activeOrder.value?.total_amount || 0) * 100))
-const receivedCents = computed(() => Math.round(Number(cashReceived.value) * 100))
+const cashReceivedCents = computed(() => Math.round(Number(cashReceived.value) * 100))
 const canPay = computed(
   () =>
-    activePayment.value?.status === 'pending' &&
-    !!activeOrder.value &&
-    (paymentMethod.value === 'bank'
-      ? bankVerified.value
-      : /^\d+(\.\d{1,2})?$/.test(String(cashReceived.value)) &&
-        Number.isFinite(receivedCents.value) &&
-        Number.isFinite(dueCents.value) &&
-        receivedCents.value >= dueCents.value),
+    (!loading.value && !submittingPayment.value && !!pendingPayment.value) ||
+    (selectedInvoice.value?.can_settle &&
+      !isPaid(selectedInvoice.value) &&
+      !loading.value &&
+      !paymentStale.value &&
+      !submittingPayment.value &&
+      Number.isFinite(amountDueCents.value) &&
+      amountDueCents.value >= 0 &&
+      (paymentMethod.value === 'bank'
+        ? bankVerified.value
+        : /^\d+(\.\d{1,2})?$/.test(cashReceived.value) &&
+          Number.isFinite(cashReceivedCents.value) &&
+          cashReceivedCents.value >= amountDueCents.value)),
 )
-const change = computed(() => Math.max(0, receivedCents.value - dueCents.value) / 100)
-let loadVersion = 0
-let orderVersion = 0
-const payments = ref([])
-const loading = ref(true)
-const statusFilter = ref('pending')
-const selectedDay = ref('')
-function selectToday() {
-  selectedDay.value = new Intl.DateTimeFormat('en-CA', {
+async function loadInvoices() {
+  const current = ++requestVersion
+  loading.value = true
+  error.value = ''
+  try {
+    const response = await cashierService.invoices({
+      status: status.value,
+      date: selectedDate.value || undefined,
+      page: page.value,
+    })
+    if (current !== requestVersion) return
+    invoices.value = response.data
+    meta.value = response.meta
+    if (selectedInvoice.value && modalOpen.value && !submittingPayment.value) {
+      const updated = invoices.value.find((invoice) => invoice.id === selectedInvoice.value.id)
+      if (updated) {
+        if (updated.amount_due !== selectedInvoice.value.amount_due) {
+          cashReceived.value = ''
+          bankVerified.value = false
+        }
+        selectedInvoice.value = updated
+        paymentStale.value = false
+      } else paymentStale.value = true
+    }
+  } catch (e) {
+    if (current === requestVersion) {
+      error.value = e.message
+      if (modalOpen.value) paymentStale.value = true
+    }
+  } finally {
+    if (current === requestVersion) loading.value = false
+  }
+}
+function selectStatus(value) {
+  selectingTables.value = false
+  selectedIds.value = []
+  status.value = value
+  page.value = 1
+  loadInvoices()
+}
+function changePage(next) {
+  page.value = next
+  loadInvoices()
+}
+function openCheckout(invoice) {
+  if (loading.value || submittingPayment.value) return
+  selectedInvoice.value = invoice
+  paymentStale.value = true
+  cashReceived.value = ''
+  bankVerified.value = false
+  paymentMethod.value = 'cash'
+  paymentRequestKey.value = null
+  pendingPayment.value = null
+  error.value = ''
+  modalOpen.value = true
+  loadInvoices()
+}
+async function settle() {
+  if (!canPay.value) return
+  submittingPayment.value = true
+  paymentRequestKey.value ||= createRequestKey()
+  pendingPayment.value ||= {
+    id: selectedInvoice.value.id,
+    method: paymentMethod.value,
+    cents: amountDueCents.value,
+    key: paymentRequestKey.value,
+  }
+  error.value = ''
+  try {
+    const res = await cashierService.settleInvoice(
+      pendingPayment.value.id,
+      pendingPayment.value.method,
+      pendingPayment.value.cents,
+      pendingPayment.value.key,
+    )
+    selectedInvoice.value = res.data
+    pendingPayment.value = null
+    status.value = 'closed'
+    page.value = 1
+    await loadInvoices()
+  } catch (e) {
+    error.value = e.message
+    paymentStale.value = true
+    if (e.status && e.status < 500) {
+      paymentRequestKey.value = null
+      pendingPayment.value = null
+    }
+    if (e.status === 409) {
+      const message = e.message
+      await loadInvoices()
+      const updatedInvoice = invoices.value.find(
+        (invoice) => invoice.id === selectedInvoice.value?.id,
+      )
+      if (updatedInvoice && !loading.value && !error.value) {
+        selectedInvoice.value = updatedInvoice
+        paymentStale.value = false
+      }
+      cashReceived.value = ''
+      bankVerified.value = false
+      error.value = message
+    }
+  } finally {
+    submittingPayment.value = false
+  }
+}
+function receiptImage(invoice) {
+  return createReceiptImage({
+    order: invoice,
+    restaurant: restaurant.settings,
+    t,
+    money,
+    date: formatDateTime,
+  })
+}
+const cashShortcuts = computed(() => {
+  const amount = amountDueCents.value / 100
+  return [...new Set([amount, Math.ceil(amount / 5) * 5, Math.ceil(amount / 10) * 10])]
+})
+async function saveReceipt() {
+  if (!isPaid(selectedInvoice.value) || savingReceipt.value) return
+  const snapshot = selectedInvoice.value
+  savingReceipt.value = true
+  try {
+    const blob = await receiptImage(snapshot)
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${snapshot.order_number}.png`
+    document.body.append(link)
+    link.click()
+    link.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 60000)
+  } catch (e) {
+    error.value = e.message
+  } finally {
+    savingReceipt.value = false
+  }
+}
+
+const pageTotal = computed(
+  () =>
+    visibleInvoices.value.reduce(
+      (total, invoice) =>
+        total +
+        Math.round(Number(isPaid(invoice) ? invoice.paid_amount : invoice.amount_due) * 100),
+      0,
+    ) / 100,
+)
+function getTodayDate() {
+  return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Bangkok',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
   }).format(new Date())
 }
-
-const modalOpen = ref(false)
-const activePayment = ref(null)
-const activeOrder = ref(null)
-const orderLoading = ref(false)
-const paying = ref(false)
-
-function selectPaymentMethod(method) {
-  paymentMethod.value = method
-  bankVerified.value = false
-  cashError.value = ''
+function selectToday() {
+  selectedDate.value = getTodayDate()
 }
-
-function setCashAmount(amount) {
-  cashReceived.value = amount.toFixed(2)
-  cashError.value = ''
-}
-
-async function load() {
-  const version = ++loadVersion
-  loading.value = true
-  try {
-    const res = await cashierService.payments({
-      status: statusFilter.value,
-      page: page.value,
-      date: selectedDay.value || undefined,
-    })
-    if (version !== loadVersion) return
-    payments.value = res.data
-    meta.value = res.meta || null
-  } catch (e) {
-    if (version !== loadVersion) return
-    payments.value = []
-    meta.value = null
-    toast.error(t(e.message))
-  } finally {
-    if (version === loadVersion) loading.value = false
-  }
-}
-onMounted(load)
-watch([statusFilter, selectedDay], () => {
+watch(selectedDate, () => {
   page.value = 1
-  search.value = ''
-  load()
+  loadInvoices()
 })
-function changePage(next) {
-  page.value = next
-  search.value = ''
-  load()
-}
 
-async function openPayment(payment) {
-  if (paying.value) return
-  const version = ++orderVersion
-  cashReceived.value = ''
-  paymentMethod.value = payment.method === 'bank' ? 'bank' : 'cash'
-  bankVerified.value = false
-  cashError.value = ''
-  activePayment.value = payment
-  activeOrder.value = null
-  modalOpen.value = true
-  orderLoading.value = true
-  try {
-    const res = await orderService.get(payment.order_id)
-    if (version === orderVersion) activeOrder.value = res.data
-  } catch (e) {
-    toast.error(t(e.message))
-  } finally {
-    if (version === orderVersion) orderLoading.value = false
-  }
-}
-
-async function printReceipt() {
-  if (!activeOrder.value) return
-  const printWindow = window.open('', '_blank')
-  if (!printWindow) {
-    toast.error(t('Allow pop-ups to print the receipt.'))
-    return
-  }
-  let imageUrl
-  try {
-    const blob = await createReceiptImage({
-      order: { ...activeOrder.value, table: activeOrder.value.table?.table_number },
-      restaurant: restaurant.settings,
-      t,
-      money: formatCurrency,
-      date: formatDateTime,
-    })
-    if (printWindow.closed) return
-    imageUrl = URL.createObjectURL(blob)
-    printWindow.document.title = t('Receipt')
-    const style = printWindow.document.createElement('style')
-    style.textContent =
-      '@page { size: A6; margin: 0; } body { margin: 0; } img { display: block; width: 105mm; height: 148mm; }'
-    printWindow.document.head.appendChild(style)
-    const image = printWindow.document.createElement('img')
-    image.alt = t('Receipt')
-    image.onload = () => {
-      printWindow.focus()
-      printWindow.print()
-    }
-    image.src = imageUrl
-    printWindow.document.body.appendChild(image)
-    printWindow.addEventListener(
-      'afterprint',
-      () => {
-        URL.revokeObjectURL(imageUrl)
-        printWindow.close()
-      },
-      { once: true },
-    )
-    setTimeout(() => URL.revokeObjectURL(imageUrl), 60000)
-  } catch {
-    if (imageUrl) URL.revokeObjectURL(imageUrl)
-    printWindow.close()
-    toast.error(t('Could not prepare the receipt. Please try again.'))
-  }
-}
-
-async function completePayment() {
-  if (paying.value) return
-  if (!canPay.value) {
-    cashError.value = t('Cash received must cover the total due.')
-    return
-  }
-  const orderId = activePayment.value.order_id
-  paying.value = true
-  try {
-    await cashierService.pay(orderId, paymentMethod.value)
-    toast.success(t('Payment completed'))
-    modalOpen.value = false
-    await load()
-  } catch (e) {
-    toast.error(t(e.message))
-  } finally {
-    paying.value = false
-  }
-}
+let refreshTimer
+onMounted(() => {
+  loadInvoices()
+  refreshTimer = setInterval(() => {
+    if (!loading.value && !submittingPayment.value && !document.hidden) loadInvoices()
+  }, 5000)
+})
+onUnmounted(() => {
+  clearInterval(refreshTimer)
+  requestVersion++
+})
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">{{ $t('Payments') }}</h1>
+  <section class="payments-page">
+    <header class="payments-heading">
+      <h1 class="text-2xl font-bold">{{ $t('Payments') }}</h1>
       <button
-        class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold disabled:opacity-50"
-        :disabled="loading || paying"
-        @click="load"
+        class="payment-control"
+        :disabled="loading || submittingPayment"
+        @click="loadInvoices"
       >
         {{ $t('Refresh') }}
       </button>
-    </div>
-
-    <div class="flex flex-wrap items-center gap-3">
-      <div class="flex rounded-xl bg-slate-100 p-1" role="group" :aria-label="$t('Payment status')">
+    </header>
+    <div class="payments-toolbar">
+      <button
+        v-if="status === 'open'"
+        type="button"
+        :disabled="submittingPayment || loading"
+        class="rounded-xl border border-primary-200 bg-primary-50 px-4 py-2.5 text-sm font-semibold text-primary-700 disabled:opacity-40 dark:border-primary-800 dark:bg-primary-950 dark:text-primary-200"
+        :aria-pressed="selectingTables"
+        @click="toggleSelection"
+      >
+        {{ $t(selectingTables ? 'Cancel selection' : 'Combine invoices') }}
+      </button>
+      <div class="payment-tabs" :aria-label="$t('Payments')">
         <button
-          v-for="status in ['pending', 'paid']"
-          :key="status"
-          class="rounded-lg px-5 py-2.5 text-sm font-bold"
-          :class="
-            statusFilter === status ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500'
-          "
-          :aria-pressed="statusFilter === status"
-          :disabled="paying"
-          @click="statusFilter = status"
+          v-for="filter in statusFilters"
+          :key="filter.value"
+          :aria-pressed="status === filter.value"
+          :disabled="submittingPayment || !!pendingPayment"
+          @click="selectStatus(filter.value)"
         >
-          {{ $t(status === 'pending' ? 'Pending' : 'Paid') }}
+          {{ $t(filter.label) }}
         </button>
       </div>
-      <input
-        v-model="search"
-        type="search"
-        :aria-label="$t('Search orders on this page')"
-        :placeholder="$t('Search orders on this page')"
-        class="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm"
-      />
+      <label class="payment-search">
+        <span class="sr-only">{{ $t('Search table or invoice') }}</span>
+        <input v-model="search" type="search" :placeholder="$t('Search table or invoice')" />
+      </label>
     </div>
-    <div class="flex flex-wrap items-center gap-3">
-      <label for="payment-day" class="text-sm font-semibold">{{ $t('Filter by day') }}</label>
+    <div class="payments-date-filter">
+      <label for="payment-date" class="text-sm font-medium">{{ $t('Filter by day') }}</label>
       <input
-        id="payment-day"
-        v-model="selectedDay"
+        id="payment-date"
+        v-model="selectedDate"
         type="date"
-        :disabled="paying"
-        class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm"
+        class="payment-control"
+        :disabled="submittingPayment || !!pendingPayment"
       />
       <button
-        class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold"
-        :disabled="paying"
+        class="payment-control"
+        :aria-pressed="selectedDate === getTodayDate()"
+        :disabled="submittingPayment || !!pendingPayment"
         @click="selectToday"
       >
         {{ $t('Today') }}
       </button>
       <button
-        class="rounded-xl border px-4 py-2.5 text-sm font-semibold"
-        :class="
-          !selectedDay
-            ? 'border-primary-600 bg-primary-50 text-primary-600'
-            : 'border-slate-200 bg-white'
-        "
-        :aria-pressed="!selectedDay"
-        :disabled="paying"
-        @click="selectedDay = ''"
+        class="payment-control"
+        :aria-pressed="!selectedDate"
+        :disabled="submittingPayment || !!pendingPayment"
+        @click="selectedDate = ''"
       >
         {{ $t('All days') }}
       </button>
     </div>
+    <div class="payments-summary" aria-live="polite">
+      <span
+        >{{ $t('Payments on this page') }}: <strong>{{ visibleInvoices.length }}</strong></span
+      >
+      <span
+        >{{ $t('Total on this page') }}: <strong>{{ money(pageTotal) }}</strong></span
+      >
+    </div>
     <div
-      v-if="!loading"
-      class="flex flex-wrap justify-between gap-2 rounded-xl border border-slate-200 bg-white p-4 text-sm"
+      v-if="selectingTables"
+      class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary-200 bg-primary-50 p-4 dark:border-primary-900 dark:bg-primary-950"
     >
-      <span
-        >{{ $t('Orders on this page') }}: <strong>{{ payments.length }}</strong></span
+      <span class="text-sm font-semibold text-primary-700 dark:text-primary-200"
+        >{{ $t('Selected tables') }}: {{ selectedIds.length }}</span
       >
-      <span
-        >{{ $t('Total on this page') }}: <strong>{{ formatCurrency(pageTotal) }}</strong></span
-      >
-    </div>
-    <div v-if="loading" class="flex flex-col gap-3">
-      <SkeletonLoader variant="line" :count="6" />
-    </div>
-    <EmptyState
-      v-else-if="visiblePayments.length === 0"
-      :icon="BanknotesIcon"
-      :title="$t('No payments found')"
-    />
-    <div v-else class="card divide-y divide-slate-100 dark:divide-slate-800">
       <button
-        v-for="payment in visiblePayments"
-        :key="payment.id"
-        class="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60"
-        @click="openPayment(payment)"
+        type="button"
+        :disabled="
+          selectedIds.length < 2 || selectedIds.length > 30 || loading || submittingPayment
+        "
+        class="rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
+        @click="openMerge()"
       >
-        <div>
-          <p class="text-sm font-semibold text-slate-900 dark:text-slate-100">
-            #{{ payment.order_number }}
-          </p>
-          <p class="text-xs text-slate-400">
-            {{
-              payment.status !== 'paid'
-                ? $t('Awaiting payment')
-                : payment.received_by
-                  ? $t('Received by {name}', { name: payment.received_by })
-                  : payment.method === 'acleda'
-                    ? $t('Bank')
-                    : $t('Receiver not recorded')
-            }}
-          </p>
-        </div>
-        <div class="flex items-center gap-4">
-          <span class="text-base font-bold text-slate-900 dark:text-slate-100">{{
-            formatCurrency(payment.amount)
-          }}</span
-          ><span
-            class="rounded-lg px-3 py-2 text-xs font-bold"
-            :class="
-              payment.status === 'paid'
-                ? 'bg-green-50 text-green-700'
-                : 'bg-primary-50 text-primary-600'
-            "
-            >{{ $t(payment.status === 'paid' ? 'Paid' : 'Take payment') }}</span
-          >
-        </div>
+        {{ $t('Review invoices') }}
       </button>
     </div>
-
-    <div v-if="meta && meta.last_page > 1" class="flex items-center justify-center gap-4">
+    <p v-if="error && !modalOpen" role="alert" class="text-sm text-danger-600">{{ $t(error) }}</p>
+    <p v-if="loading" role="status" class="text-sm text-slate-500">{{ $t('Loading...') }}</p>
+    <div v-if="!loading && !visibleInvoices.length" class="payments-empty">
+      {{ $t(status === 'open' ? 'No unpaid bills' : 'No paid bills') }}
+    </div>
+    <div v-if="visibleInvoices.length" class="surface-card payments-list">
+      <div
+        v-for="invoice in visibleInvoices"
+        :key="invoice.id"
+        class="flex items-center border-b border-slate-100 last:border-0 dark:border-slate-800"
+      >
+        <label v-if="selectingTables" class="flex shrink-0 items-center pl-4"
+          ><input
+            v-model="selectedIds"
+            :value="invoice.id"
+            type="checkbox"
+            :aria-label="`${$t('Table')} ${invoice.table}`"
+            :disabled="!invoice.can_settle || loading || submittingPayment"
+            class="h-5 w-5 accent-primary-600"
+        /></label>
+        <button
+          class="payment-row"
+          :disabled="loading || submittingPayment"
+          @click="openCheckout(invoice)"
+        >
+          <span class="payment-reference">
+            <strong>#{{ invoice.order_number }}</strong>
+            <span
+              >{{ $t('Table') }} {{ invoice.table }} &middot;
+              {{ $t(checkoutStatus(invoice).label) }}</span
+            >
+          </span>
+          <strong class="payment-amount">{{
+            money(isPaid(invoice) ? invoice.paid_amount : invoice.amount_due)
+          }}</strong>
+          <span class="payment-row-action">{{ $t(checkoutStatus(invoice).action) }}</span>
+        </button>
+      </div>
+    </div>
+    <nav
+      v-if="meta && meta.last_page > 1"
+      class="flex items-center justify-center gap-4"
+      :aria-label="$t('Pagination')"
+    >
       <button
-        class="rounded-lg border px-4 py-2"
-        :disabled="loading || page <= 1"
+        class="payment-control"
+        :disabled="loading || submittingPayment || page === 1"
         @click="changePage(page - 1)"
       >
         {{ $t('Previous') }}
       </button>
-      <span class="text-sm">{{ page }} / {{ meta.last_page }}</span>
+      <span>{{ page }} / {{ meta.last_page }}</span>
       <button
-        class="rounded-lg border px-4 py-2"
-        :disabled="loading || page >= meta.last_page"
+        class="payment-control"
+        :disabled="loading || submittingPayment || page === meta.last_page"
         @click="changePage(page + 1)"
       >
         {{ $t('Next') }}
       </button>
-    </div>
-    <Modal v-model="modalOpen" :title="$t('Order Payment')" size="md">
-      <div v-if="orderLoading" class="flex justify-center py-10">
-        <SkeletonLoader variant="line" :count="4" />
-      </div>
-
-      <div
-        v-else-if="activeOrder"
-        id="receipt"
-        class="flex max-h-[70dvh] flex-col gap-4 overflow-y-auto"
-      >
-        <div class="flex items-center justify-between">
+    </nav>
+    <Modal v-model="modalOpen" :title="isPaid(selectedInvoice) ? 'Receipt' : 'Checkout'" size="lg">
+      <div v-if="selectedInvoice" class="max-h-[72dvh] overflow-y-auto pr-1">
+        <div
+          class="mb-5 flex items-center justify-between gap-3 border-b border-slate-100 pb-5 dark:border-slate-800"
+        >
           <div>
-            <p class="text-lg font-bold text-slate-900 dark:text-slate-100">
-              #{{ activeOrder.order_number }}
-            </p>
-            <p class="text-xs text-slate-400">
-              {{ $t('Table') }} {{ activeOrder.table?.table_number }} &middot;
-              {{ formatDateTime(activeOrder.created_at) }}
-            </p>
+            <h2 class="text-2xl font-bold tracking-tight">
+              {{ $t('Table') }} {{ selectedInvoice.table }}
+            </h2>
+            <p class="mt-1 text-xs text-slate-500">#{{ selectedInvoice.order_number }}</p>
           </div>
-          <p class="text-sm text-slate-500 dark:text-slate-400">{{ activeOrder.customer?.name }}</p>
-        </div>
-
-        <ul class="divide-y divide-slate-100 text-sm dark:divide-slate-800">
-          <li v-for="item in activeOrder.items" :key="item.id" class="flex justify-between py-2">
-            <span>{{ item.quantity }}&times; {{ item.product_name }}</span>
-            <span>{{ formatCurrency(item.subtotal) }}</span>
-          </li>
-        </ul>
-
-        <div class="space-y-1.5 border-t border-slate-100 pt-3 text-sm dark:border-slate-800">
-          <div class="flex justify-between text-slate-500 dark:text-slate-400">
-            <span>{{ $t('Subtotal') }}</span>
-            <span>{{ formatCurrency(activeOrder.subtotal) }}</span>
-          </div>
-          <div class="flex justify-between text-slate-500 dark:text-slate-400">
-            <span>{{ $t('Tax') }}</span>
-            <span>{{ formatCurrency(activeOrder.tax_amount) }}</span>
-          </div>
-          <div class="flex justify-between text-slate-500 dark:text-slate-400">
-            <span>{{ $t('Service Charge') }}</span>
-            <span>{{ formatCurrency(activeOrder.service_charge_amount) }}</span>
-          </div>
-          <div class="flex justify-between text-lg font-bold text-slate-900 dark:text-slate-100">
-            <span>{{ $t('Total Due') }}</span>
-            <span>{{ formatCurrency(activeOrder.total_amount) }}</span>
-          </div>
-        </div>
-
-        <div
-          v-if="activePayment?.status === 'pending'"
-          class="flex gap-2 print:hidden"
-          role="group"
-          :aria-label="$t('Payment method')"
-        >
-          <button
-            v-for="method in ['cash', 'bank']"
-            :key="method"
-            class="flex-1 rounded-xl border px-4 py-3 text-sm font-bold"
-            :class="
-              paymentMethod === method
-                ? 'border-primary-600 bg-primary-50 text-primary-600'
-                : 'border-slate-200'
-            "
-            :aria-pressed="paymentMethod === method"
-            :disabled="paying"
-            @click="selectPaymentMethod(method)"
+          <span
+            v-if="isPaid(selectedInvoice)"
+            class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700"
+            ><CheckCircleIcon class="h-4 w-4" aria-hidden="true" />{{ $t('Paid') }}</span
           >
-            {{ $t(method === 'cash' ? 'Cash' : 'Bank') }}
+          <button
+            v-else
+            class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 disabled:opacity-50 dark:text-slate-300"
+            :disabled="loading || submittingPayment"
+            @click="loadInvoices"
+          >
+            <ArrowPathIcon class="h-4 w-4" aria-hidden="true" />{{ $t('Refresh checkout') }}
           </button>
         </div>
-        <label
-          v-if="activePayment?.status === 'pending' && paymentMethod === 'bank'"
-          class="flex items-start gap-3 rounded-xl bg-slate-50 p-4 text-sm print:hidden"
-        >
-          <input v-model="bankVerified" type="checkbox" :disabled="paying" class="mt-1 h-4 w-4" />
-          <span>{{ $t('I have verified the bank transfer was received.') }}</span>
-        </label>
-        <p v-if="activePayment?.status === 'paid'" class="text-sm font-semibold">
-          {{ $t('Payment method') }}:
-          {{
-            $t(
-              activePayment.method === 'bank'
-                ? 'Bank'
-                : activePayment.method === 'cash'
-                  ? 'Cash'
-                  : activePayment.method,
-            )
-          }}
-        </p>
-        <div
-          v-if="activePayment?.status === 'pending' && paymentMethod === 'cash'"
-          class="rounded-xl bg-slate-50 p-4 print:hidden"
-        >
-          <label for="cash-received" class="mb-2 block text-sm font-semibold">{{
-            $t('Cash received')
-          }}</label>
-          <input
-            id="cash-received"
-            v-model="cashReceived"
-            type="number"
-            inputmode="decimal"
-            min="0"
-            step="0.01"
-            :disabled="paying"
-            class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-lg"
-            @input="cashError = ''"
-          />
-          <div class="mt-3 flex flex-wrap gap-2">
-            <button
-              v-for="amount in [
-                dueCents / 100,
-                ...[10, 20, 50, 100].filter((value) => value > dueCents / 100),
-              ]"
-              :key="amount"
-              class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-              :disabled="paying"
-              @click="setCashAmount(amount)"
+        <div class="grid gap-6 sm:grid-cols-2">
+          <div class="space-y-4">
+            <h3 class="text-xs font-semibold tracking-wide text-slate-500">
+              {{ $t('Order Summary') }}
+            </h3>
+            <ul class="divide-y divide-slate-100 dark:divide-slate-800">
+              <li
+                v-for="item in selectedInvoice.items"
+                :key="item.id"
+                class="flex items-start justify-between gap-3 py-3 text-sm"
+              >
+                <div class="min-w-0">
+                  <span class="text-slate-500">{{ item.quantity }}&times;</span>
+                  <span>{{ item.product_name }}</span>
+                  <p v-if="item.order_number" class="mt-1 text-[11px] text-slate-400">
+                    #{{ item.order_number }}
+                  </p>
+                </div>
+                <span class="shrink-0 font-medium tabular-nums">{{ money(item.subtotal) }}</span>
+              </li>
+            </ul>
+            <div class="space-y-2 border-t border-slate-200 pt-4 text-sm dark:border-slate-700">
+              <p class="flex justify-between text-slate-500">
+                <span>{{ $t('Subtotal') }}</span
+                ><span>{{ money(selectedInvoice.subtotal ?? selectedInvoice.total_amount) }}</span>
+              </p>
+              <p
+                v-if="Number(selectedInvoice.tax_amount) > 0"
+                class="flex justify-between text-slate-500"
+              >
+                <span>{{ $t('Tax') }}</span
+                ><span>{{ money(selectedInvoice.tax_amount) }}</span>
+              </p>
+              <p
+                v-if="Number(selectedInvoice.paid_amount) > 0"
+                class="flex justify-between text-slate-500"
+              >
+                <span>{{ $t('Already paid') }}</span
+                ><span>{{ money(selectedInvoice.paid_amount) }}</span>
+              </p>
+              <p class="flex justify-between pt-2 font-semibold">
+                <span>{{ $t('Total') }}</span
+                ><span>{{ money(selectedInvoice.total_amount) }}</span>
+              </p>
+            </div>
+          </div>
+          <div class="space-y-4 rounded-xl bg-slate-50 p-4 dark:bg-slate-800/60">
+            <div class="border-b border-slate-200 pb-4 dark:border-slate-700">
+              <p class="text-xs font-medium text-slate-500">
+                {{ $t(isPaid(selectedInvoice) ? 'Total paid' : 'Total Due') }}
+              </p>
+              <p class="mt-1 text-3xl font-bold tracking-tight tabular-nums">
+                {{
+                  money(
+                    isPaid(selectedInvoice)
+                      ? selectedInvoice.paid_amount
+                      : selectedInvoice.amount_due,
+                  )
+                }}
+              </p>
+            </div>
+            <p
+              v-if="!isPaid(selectedInvoice) && !selectedInvoice.can_settle"
+              class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800"
             >
-              {{ amount === dueCents / 100 ? $t('Exact amount') : formatCurrency(amount) }}
+              {{ $t('Refresh checkout') }}
+            </p>
+            <template v-if="!isPaid(selectedInvoice) && selectedInvoice.can_settle">
+              <label class="block"
+                >{{ $t('Payment method')
+                }}<select
+                  v-model="paymentMethod"
+                  :aria-label="$t('Payment method')"
+                  :disabled="submittingPayment || !!pendingPayment"
+                  class="mt-2 min-h-11 w-full rounded-lg border border-slate-200 bg-white p-3 text-sm outline-none focus:border-primary-500 dark:border-slate-700 dark:bg-slate-900"
+                >
+                  <option value="cash">{{ $t('Cash') }}</option>
+                  <option value="bank">{{ $t('Bank') }}</option>
+                </select></label
+              >
+              <label v-if="paymentMethod === 'cash'" class="block"
+                >{{ $t('Cash received')
+                }}<input
+                  v-model="cashReceived"
+                  inputmode="decimal"
+                  :disabled="submittingPayment || !!pendingPayment"
+                  class="mt-2 w-full rounded-xl border p-3"
+              /></label>
+              <div v-if="paymentMethod === 'cash'" class="flex flex-wrap gap-2">
+                <button
+                  v-for="amount in cashShortcuts"
+                  :key="amount"
+                  class="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
+                  :disabled="submittingPayment || !!pendingPayment"
+                  @click="cashReceived = amount.toFixed(2)"
+                >
+                  {{ amount === amountDueCents / 100 ? $t('Exact amount') : money(amount) }}
+                </button>
+              </div>
+              <label v-if="paymentMethod === 'bank'" class="flex gap-3"
+                ><input
+                  v-model="bankVerified"
+                  type="checkbox"
+                  :disabled="submittingPayment || !!pendingPayment"
+                />{{ $t('I have verified the bank transfer was received.') }}</label
+              >
+              <p
+                v-if="paymentMethod === 'cash' && cashReceived !== ''"
+                class="text-right text-sm font-semibold"
+              >
+                {{ $t('Change') }}:
+                {{ money(Math.max(0, cashReceivedCents - amountDueCents) / 100) }}
+              </p>
+              <button
+                class="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-3 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-40"
+                :disabled="!canPay"
+                @click="settle"
+              >
+                <BanknotesIcon class="h-4 w-4" aria-hidden="true" />{{
+                  $t(
+                    submittingPayment
+                      ? 'Updating...'
+                      : pendingPayment
+                        ? 'Try again'
+                        : 'Confirm payment',
+                  )
+                }}
+              </button>
+            </template>
+            <button
+              v-if="isPaid(selectedInvoice)"
+              :disabled="savingReceipt"
+              class="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
+              @click="saveReceipt"
+            >
+              <DocumentTextIcon class="h-4 w-4" aria-hidden="true" />{{ $t('Save receipt') }}
             </button>
+            <p v-if="error" role="alert" class="text-sm text-danger-600">{{ $t(error) }}</p>
           </div>
-          <div class="mt-4 flex justify-between text-lg font-bold">
-            <span>{{ $t('Change') }}</span
-            ><span class="text-success-600">{{ formatCurrency(change) }}</span>
-          </div>
-          <p v-if="cashError" role="alert" class="mt-2 text-sm text-danger-600">{{ cashError }}</p>
-        </div>
-        <div class="flex gap-2 print:hidden">
-          <button
-            class="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-            @click="printReceipt"
-          >
-            <PrinterIcon class="h-4 w-4" /> {{ $t('Print Receipt') }}
-          </button>
-          <button
-            v-if="activePayment?.status !== 'paid'"
-            class="flex-1 rounded-xl bg-success-600 py-2.5 text-sm font-semibold text-white hover:bg-success-500 disabled:opacity-50"
-            :disabled="paying || !canPay"
-            @click="completePayment"
-          >
-            {{
-              paying
-                ? $t('Processing…')
-                : paymentMethod === 'bank'
-                  ? $t('Confirm bank payment')
-                  : $t('Receive Cash & Complete')
-            }}
-          </button>
         </div>
       </div>
     </Modal>
-  </div>
+    <InvoiceMerge v-model="mergeOpen" :ids="selectedIds" @merged="invoicesMerged" />
+  </section>
 </template>
+
+<style scoped>
+.payments-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.payments-heading,
+.payments-toolbar,
+.payments-date-filter,
+.payments-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.payments-heading,
+.payments-summary {
+  justify-content: space-between;
+}
+.payment-control {
+  min-height: 42px;
+  padding: 10px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: white;
+  font-size: 14px;
+}
+.payment-tabs {
+  display: flex;
+  flex-shrink: 0;
+  gap: 4px;
+  padding: 4px;
+  background: #f1f5f9;
+  border-radius: 12px;
+}
+.payment-tabs button {
+  min-height: 40px;
+  padding: 10px 20px;
+  border-radius: 9px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+}
+.payment-tabs button[aria-pressed='true'] {
+  background: white;
+  color: #ce0233;
+  box-shadow: 0 1px 4px #0f172a20;
+}
+.payment-control[aria-pressed='true'] {
+  color: #ce0233;
+  border-color: #fda4af;
+  background: #fff1f2;
+}
+.payment-search {
+  flex: 1;
+  min-width: 0;
+}
+.payment-search input {
+  width: 100%;
+  min-height: 46px;
+  padding: 12px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: white;
+  font-size: 13px;
+}
+.payments-date-filter {
+  flex-wrap: wrap;
+}
+.payments-summary {
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: white;
+  font-size: 13px;
+}
+.payments-list {
+  overflow: hidden;
+  border-radius: 16px;
+}
+.payment-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-height: 66px;
+  padding: 16px;
+  text-align: left;
+}
+.payment-row + .payment-row {
+  border-top: 1px solid #f1f5f9;
+}
+.payment-row:hover {
+  background: #f8fafc;
+}
+.payment-reference {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+.payment-reference strong {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.payment-reference > span {
+  color: #94a3b8;
+  font-size: 12px;
+}
+.payment-amount {
+  flex-shrink: 0;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.payment-row-action {
+  min-width: 102px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: #fff1f2;
+  color: #ce0233;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+.payments-empty {
+  padding: 48px 20px;
+  text-align: center;
+  color: #64748b;
+  border: 1px dashed #cbd5e1;
+  border-radius: 16px;
+}
+button:disabled {
+  opacity: 0.5;
+}
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid #fb7185;
+  outline-offset: 3px;
+}
+:global(.dark) .payment-control,
+:global(.dark) .payment-search input,
+:global(.dark) .payments-summary,
+:global(.dark) .payments-list {
+  background: #0f172a;
+  border-color: #334155;
+}
+:global(.dark) .payment-tabs {
+  background: #1e293b;
+}
+:global(.dark) .payment-tabs button[aria-pressed='true'],
+:global(.dark) .payment-row:hover {
+  background: #334155;
+}
+:global(.dark) .payment-row + .payment-row {
+  border-color: #1e293b;
+}
+@media (max-width: 639px) {
+  .payments-toolbar {
+    flex-wrap: wrap;
+  }
+  .payment-search {
+    flex-basis: 100%;
+  }
+  .payment-row {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .payment-reference {
+    flex-basis: calc(100% - 100px);
+  }
+  .payment-row-action {
+    margin-left: auto;
+  }
+  .payments-summary {
+    flex-wrap: wrap;
+  }
+}
+</style>

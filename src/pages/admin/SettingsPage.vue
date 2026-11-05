@@ -34,7 +34,6 @@ const form = ref({
   email: '',
   currency: 'USD',
   tax_percentage: 0,
-  service_charge_percentage: 0,
   opening_time: '',
   closing_time: '',
 })
@@ -52,7 +51,6 @@ async function load() {
       email: s.email ?? '',
       currency: s.currency ?? 'USD',
       tax_percentage: s.tax_percentage ?? 0,
-      service_charge_percentage: s.service_charge_percentage ?? 0,
       opening_time: timeInput(s.opening_time),
       closing_time: timeInput(s.closing_time),
     }
@@ -250,7 +248,7 @@ async function save() {
         </div>
       </div>
 
-      <div class="grid grid-cols-3 gap-3">
+      <div class="grid grid-cols-2 gap-3">
         <div>
           <label
             class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200"
@@ -301,36 +299,6 @@ async function save() {
             class="mt-1 text-xs font-medium text-danger-600"
           >
             {{ fieldError('tax_percentage') }}
-          </p>
-        </div>
-        <div>
-          <label
-            class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200"
-            for="settings-service_charge_percentage"
-            >{{ $t('Service %') }}</label
-          >
-          <input
-            v-model.number="form.service_charge_percentage"
-            id="settings-service_charge_percentage"
-            :aria-invalid="!!fieldError('service_charge_percentage')"
-            :aria-describedby="
-              fieldError('service_charge_percentage')
-                ? 'settings-service_charge_percentage-error'
-                : undefined
-            "
-            @input="clearError('service_charge_percentage')"
-            type="number"
-            min="0"
-            max="100"
-            step="0.1"
-            class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-primary-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900"
-          />
-          <p
-            v-if="fieldError('service_charge_percentage')"
-            id="settings-service_charge_percentage-error"
-            class="mt-1 text-xs font-medium text-danger-600"
-          >
-            {{ fieldError('service_charge_percentage') }}
           </p>
         </div>
       </div>

@@ -1,8 +1,8 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import { tableOrder, forgetSessionOrders } from '../../utils/tableOrders'
 import { orderService } from '../../services/orderService'
-import { tableOrder } from '../../utils/tableOrders'
 import { MagnifyingGlassIcon, FaceFrownIcon } from '@heroicons/vue/24/outline'
 import { menuService } from '../../services/menuService'
 import { useCartStore } from '../../stores/cart'
@@ -12,7 +12,6 @@ import SkeletonLoader from '../../components/ui/SkeletonLoader.vue'
 import EmptyState from '../../components/ui/EmptyState.vue'
 
 const route = useRoute()
-const router = useRouter()
 const cart = useCartStore()
 
 const menu = ref(null)
@@ -20,6 +19,8 @@ const loading = ref(true)
 const error = ref('')
 const search = ref('')
 const activeCategory = ref('all')
+const previousOrderNumber = ref(null)
+const browseAll = ref(false)
 
 let requestVersion = 0
 async function loadMenu() {
@@ -32,17 +33,21 @@ async function loadMenu() {
   try {
     const res = await menuService.getMenu(qrToken)
     if (version !== requestVersion || route.params.qrToken !== qrToken) return
-    const previousOrder = tableOrder(res.data.table, qrToken)
-    if (previousOrder) {
+    previousOrderNumber.value = tableOrder(res.data.table, qrToken)
+    if (previousOrderNumber.value) {
       try {
-        const tracked = await orderService.track(previousOrder)
+        const response = await orderService.bill(previousOrderNumber.value)
         if (version !== requestVersion || route.params.qrToken !== qrToken) return
-        if (['pending', 'confirmed', 'preparing', 'ready'].includes(tracked.data.status)) {
-          await router.replace({ name: 'order-tracking', params: { orderNumber: previousOrder } })
-          return
+        if (response.data.closed_at) {
+          const currentVisit = forgetSessionOrders(
+            response.data.orders.map((order) => order.order_number),
+            cart.qrToken,
+          )
+          if (currentVisit) cart.clear()
+          previousOrderNumber.value = null
         }
       } catch {
-        /* A missing or temporarily unavailable order must not block the menu. */
+        // The menu remains available when a previous visit cannot be refreshed.
       }
     }
     if (version !== requestVersion || route.params.qrToken !== qrToken) return
@@ -66,6 +71,7 @@ async function loadMenu() {
 
 onMounted(loadMenu)
 watch(() => route.params.qrToken, loadMenu)
+onUnmounted(() => requestVersion++)
 
 const filteredProducts = computed(() => {
   if (!menu.value) return []
@@ -87,15 +93,22 @@ const topSellers = computed(() =>
     .sort((a, b) => Number(b.sales_count || 0) - Number(a.sales_count || 0))
     .slice(0, 4),
 )
-const signatureProducts = computed(() =>
-  allProducts.value.filter((p) => p.available && p.is_signature === true).slice(0, 4),
+const showingPopular = computed(
+  () =>
+    !browseAll.value &&
+    !search.value.trim() &&
+    activeCategory.value === 'all' &&
+    topSellers.value.length > 0,
+)
+const displayedProducts = computed(() =>
+  showingPopular.value ? topSellers.value : filteredProducts.value,
 )
 </script>
 
 <template>
-  <div v-if="loading" class="flex flex-col gap-5">
+  <div v-if="loading" class="flex flex-col gap-5" :aria-label="$t('Loading...')">
     <div class="h-12 animate-pulse rounded-xl bg-slate-100" />
-    <div class="food-grid">
+    <div class="grid grid-cols-2 gap-4 sm:grid-cols-3">
       <SkeletonLoader variant="card" :count="6" />
     </div>
   </div>
@@ -108,79 +121,67 @@ const signatureProducts = computed(() =>
       {{ $t('Try again') }}
     </button></EmptyState
   >
-  <div v-else class="menu-page">
-    <div class="menu-greeting">
-      <div>
-        <h1>{{ $t('Our menu') }}</h1>
-      </div>
-      <span class="menu-dish-count">{{ filteredProducts.length }}</span>
-    </div>
-    <div class="customer-search">
-      <MagnifyingGlassIcon /><input
+  <div v-else class="flex min-w-0 flex-col gap-5 sm:gap-6">
+    <h1 class="sr-only">{{ $t('Our menu') }}</h1>
+    <RouterLink
+      v-if="previousOrderNumber"
+      :to="{ name: 'order-tracking', params: { orderNumber: previousOrderNumber } }"
+      class="block rounded-xl bg-primary-50 p-3 text-center text-sm font-semibold text-primary-600"
+      >{{ $t('View previous order') }} &middot; #{{ previousOrderNumber }}</RouterLink
+    >
+    <label
+      class="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 shadow-sm focus-within:ring-2 focus-within:ring-primary-500"
+    >
+      <MagnifyingGlassIcon class="h-6 w-6 shrink-0 text-slate-500" />
+      <input
         v-model="search"
         type="search"
         :aria-label="$t('Search dishes')"
-        :placeholder="$t('Search dishes...')"
+        :placeholder="$t('Search food...')"
+        class="min-w-0 flex-1 bg-transparent py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400"
       />
-    </div>
-    <section class="menu-category-section">
-      <CategoryTabs v-model="activeCategory" :categories="menu.categories" />
-    </section>
-    <section
-      v-if="!search.trim() && activeCategory === 'all' && topSellers.length"
-      class="menu-collection"
-    >
-      <div class="menu-section-heading">
-        <h2>{{ $t('Top Sellers') }}</h2>
-      </div>
-      <div v-if="topSellers.length" class="food-grid">
-        <ProductCard
-          v-for="product in topSellers"
-          :key="product.id"
-          :product="product"
-          :currency="menu.restaurant.currency"
-        />
-      </div>
-    </section>
-    <section
-      v-if="!search.trim() && activeCategory === 'all' && signatureProducts.length"
-      class="menu-collection"
-    >
-      <div class="menu-section-heading">
-        <h2>{{ $t('Signature') }}</h2>
-      </div>
-      <div v-if="signatureProducts.length" class="food-grid">
-        <ProductCard
-          v-for="product in signatureProducts"
-          :key="product.id"
-          :product="product"
-          :currency="menu.restaurant.currency"
-        />
-      </div>
-    </section>
-    <div class="menu-section-heading">
-      <div>
-        <h2>
+    </label>
+    <CategoryTabs v-model="activeCategory" :categories="menu.categories" />
+    <section class="flex flex-col gap-4" :aria-label="$t('Our menu')">
+      <div class="flex items-center justify-between gap-3">
+        <h2 class="text-lg font-bold text-slate-950 sm:text-xl">
           {{
-            activeCategory === 'all'
-              ? $t('All')
-              : menu.categories.find((c) => c.id === activeCategory)?.name
+            showingPopular
+              ? $t('Popular')
+              : activeCategory === 'all'
+                ? $t('All')
+                : menu.categories.find((category) => category.id === activeCategory)?.name
           }}
         </h2>
+        <button
+          v-if="showingPopular"
+          type="button"
+          class="min-h-11 font-semibold text-primary-600 hover:text-primary-700"
+          @click="browseAll = true"
+        >
+          {{ $t('See All') }}
+        </button>
+        <span v-else class="text-xs text-slate-400"
+          >{{ displayedProducts.length }} {{ $t('Items') }}</span
+        >
       </div>
-    </div>
-    <EmptyState
-      v-if="filteredProducts.length === 0"
-      :title="$t('No dishes found')"
-      :message="$t('Try a different search term or category.')"
-    />
-    <div v-else id="menu-foods" class="food-grid">
-      <ProductCard
-        v-for="product in filteredProducts"
-        :key="product.id"
-        :product="product"
-        :currency="menu.restaurant.currency"
+      <EmptyState
+        v-if="!displayedProducts.length"
+        :title="$t('No dishes found')"
+        :message="$t('Try a different search term or category.')"
       />
-    </div>
+      <div
+        v-else
+        id="menu-foods"
+        class="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4"
+      >
+        <ProductCard
+          v-for="product in displayedProducts"
+          :key="product.id"
+          :product="product"
+          :currency="menu.restaurant.currency"
+        />
+      </div>
+    </section>
   </div>
 </template>

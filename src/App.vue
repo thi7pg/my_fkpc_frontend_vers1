@@ -8,14 +8,9 @@ const auth = useAuthStore()
 const restaurant = useRestaurantStore()
 
 watch(
-  () => [restaurant.name, restaurant.logo, locale.value],
-  ([name, logo]) => {
+  () => [restaurant.name, locale.value],
+  ([name]) => {
     document.title = `${name} | ${t('Korean Pizza & Chicken')}`
-    const icon = document.querySelector('link[rel="icon"]')
-    if (icon) {
-      icon.removeAttribute('type')
-      icon.href = logo || '/favicon.svg'
-    }
   },
   { immediate: true },
 )

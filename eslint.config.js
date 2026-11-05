@@ -15,7 +15,7 @@ export default [
     },
   },
   {
-    files: ['scripts/**/*.cjs', 'tests/**/*.js'],
+    files: ['tests/**/*.js'],
     languageOptions: { globals: { ...globals.node, ...globals.browser } },
   },
 ]
