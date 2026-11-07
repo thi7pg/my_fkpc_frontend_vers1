@@ -53,8 +53,6 @@ export async function createReceiptImage({ order, restaurant, t, money, date }) 
       const methods = {
         cash: 'Cash',
         bank: 'Bank transfer',
-        acleda: 'ACLEDA (test)',
-        acleda_demo: 'ACLEDA (test)',
       }
       text(
         `${t('Payment method')}: ${t(methods[order.payment.method] || order.payment.method)}`,

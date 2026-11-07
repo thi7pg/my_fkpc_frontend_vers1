@@ -65,13 +65,14 @@ test('kitchen keeps older orders visible and updates status', async ({ page }) =
   await expect(page.locator('.kitchen-ticket').first()).toContainText('Table 001')
   await expect(page.getByText('Note: No onion')).toBeVisible()
   await expect(page.locator('.kitchen-time').first()).toContainText('3d')
-  await page.getByLabel('Filter by day').selectOption('today')
-  await expect(page.locator('.kitchen-ticket')).toHaveCount(1)
+  await expect(page.getByLabel('Filter by day')).toHaveCount(0)
+  await expect(page.locator('.kitchen-ticket')).toHaveCount(2)
   await expect(
     page.getByText('unfinished orders from earlier days', { exact: false }),
   ).toBeVisible()
   await expect(page.getByRole('img', { name: 'Pizza', exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'View details', exact: true }).click()
+  const recentTicket = page.locator('.kitchen-ticket').filter({ hasText: 'FKPC-000002' })
+  await recentTicket.getByRole('button', { name: 'View details', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
   await expect(dialog).toContainText('Serve together')
@@ -79,7 +80,7 @@ test('kitchen keeps older orders visible and updates status', async ({ page }) =
   await expect(dialog.getByRole('img', { name: 'Pizza', exact: true })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(dialog).not.toBeVisible()
-  await page.getByRole('button', { name: 'Confirm', exact: true }).click()
+  await recentTicket.getByRole('button', { name: 'Confirm', exact: true }).click()
   await expect.poll(() => status).toBe('preparing')
   expect(transitions).toEqual(['confirmed', 'preparing'])
   await expect(page.locator('.kitchen-column').nth(1)).toContainText('FKPC-000002')
@@ -136,7 +137,9 @@ test('kitchen names, options and notes stay readable after customer styles load'
   await page.addStyleTag({ path: 'src/customer.css' })
 
   async function expectReadable(container) {
-    const name = container.getByText(productName, { exact: true })
+    const name = container.getByText('Korean cheese pizza', { exact: true })
+    await expect(container.getByText('Medium (M)', { exact: false })).toBeVisible()
+    await expect(container.getByText('+ Extra mozzarella', { exact: true })).toBeVisible()
     await expect(name).toBeVisible()
     const clippedBy = await name.evaluate((element) => {
       const range = document.createRange()
@@ -169,7 +172,9 @@ test('kitchen names, options and notes stay readable after customer styles load'
     await expect(
       container.getByText('One customer has a peanut allergy.', { exact: false }),
     ).toBeVisible()
-    await expect(container.getByRole('img', { name: productName, exact: true })).toBeVisible()
+    await expect(
+      container.getByRole('img', { name: 'Korean cheese pizza', exact: true }),
+    ).toBeVisible()
   }
 
   await expectReadable(ticket)
@@ -180,3 +185,62 @@ test('kitchen names, options and notes stay readable after customer styles load'
   await expectReadable(dialog)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })
+
+for (const language of ['km', 'ko']) {
+  test(`kitchen separates and translates item names, sizes, toppings and notes in ${language}`, async ({
+    page,
+  }) => {
+    const { translations } = await import('../src/languages/translations.js')
+    const dictionary = translations[language]
+    const user = { id: 3, name: 'Kitchen', role: 'kitchen' }
+    await page.addInitScript(
+      ({ user, language }) => {
+        localStorage.setItem('auth_token', 'test')
+        localStorage.setItem('auth_user', JSON.stringify(user))
+        localStorage.setItem('language', language)
+      },
+      { user, language },
+    )
+    const order = {
+      id: 10,
+      order_number: 'ORD-10',
+      created_at: new Date().toISOString(),
+      table: { table_number: '001' },
+      notes: 'Serve together',
+      items: [
+        {
+          id: 1,
+          product_name: 'pizza chheese (L, Cheese 10%)',
+          quantity: 2,
+          notes: 'No onion',
+          description: 'No spicy',
+        },
+        { id: 2, product_name: 'Chef special (Herbs)', quantity: 1 },
+      ],
+    }
+    await page.route('**/api/v1/**', (route) =>
+      route.fulfill({
+        json: {
+          data: route.request().url().includes('/kitchen/dashboard')
+            ? { pending: [order], confirmed: [], preparing: [], ready: [] }
+            : { user },
+        },
+      }),
+    )
+    await page.goto('/kitchen')
+    const card = page.locator('.kitchen-ticket')
+    async function check(container) {
+      await expect(container.getByText(dictionary['Cheese pizza'], { exact: true })).toBeVisible()
+      await expect(container.getByText(`${dictionary.Large} (L)`, { exact: false })).toBeVisible()
+      await expect(container.getByText(`+ ${dictionary.Cheese} 10%`, { exact: true })).toBeVisible()
+      await expect(container.getByText(dictionary['No onion'], { exact: false })).toBeVisible()
+      await expect(container.getByText(dictionary['No spicy'], { exact: true })).toBeVisible()
+      await expect(container.getByText('Chef special (Herbs)', { exact: true })).toBeVisible()
+      await expect(container).toContainText(dictionary['Serve together'])
+    }
+    await check(card)
+    await card.getByRole('button', { name: dictionary['View details'], exact: true }).click()
+    await check(page.getByRole('dialog'))
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  })
+}

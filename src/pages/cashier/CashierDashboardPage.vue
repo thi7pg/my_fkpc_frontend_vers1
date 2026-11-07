@@ -12,6 +12,8 @@ import { useRestaurantStore } from '../../stores/restaurant'
 import { formatCurrency, formatDateTime } from '../../utils/format'
 import { createReceiptImage } from '../../utils/receiptImage'
 import Modal from '../../components/ui/Modal.vue'
+import DateRangeFilter from '../../components/ui/DateRangeFilter.vue'
+import { exportList } from '../../utils/listDocuments'
 import InvoiceMerge from '../../components/staff/InvoiceMerge.vue'
 import { createRequestKey } from '../../utils/requestKey'
 
@@ -19,7 +21,13 @@ const restaurant = useRestaurantStore()
 const money = (value) => formatCurrency(value, restaurant.settings.currency || 'USD')
 const invoices = ref([])
 const status = ref('open')
-const selectedDate = ref('')
+const dateRange = ref({ from: '', to: '' })
+const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+function invoiceDate(invoice) {
+  return status.value === 'closed'
+    ? invoice.payment?.paid_at || invoice.created_at
+    : invoice.created_at
+}
 const savingReceipt = ref(false)
 const page = ref(1)
 const meta = ref(null)
@@ -53,7 +61,7 @@ function invoicesMerged(invoice) {
   openCheckout(invoice)
 }
 function isPaid(invoice) {
-  return invoice?.payment?.status === 'paid' || !!invoice?.closed_at
+  return invoice?.payment?.status === 'paid'
 }
 const search = ref('')
 const visibleInvoices = computed(() => {
@@ -83,6 +91,7 @@ const checkoutStatuses = {
 
 function checkoutStatus(invoice) {
   if (isPaid(invoice)) return checkoutStatuses.paid
+  if (invoice.closed_at) return { label: 'Closed', action: 'View details' }
   if (invoice.checkout_requested_at && invoice.can_settle)
     return { label: 'Checkout requested', action: 'Take payment' }
   return invoice.can_settle ? checkoutStatuses.ready : checkoutStatuses.preparing
@@ -116,7 +125,9 @@ async function loadInvoices() {
   try {
     const response = await cashierService.invoices({
       status: status.value,
-      date: selectedDate.value || undefined,
+      date_from: dateRange.value.from || undefined,
+      date_to: dateRange.value.to || undefined,
+      timezone: browserTimezone,
       page: page.value,
     })
     if (current !== requestVersion) return
@@ -266,9 +277,9 @@ function getTodayDate() {
   }).format(new Date())
 }
 function selectToday() {
-  selectedDate.value = getTodayDate()
+  dateRange.value = { from: getTodayDate(), to: getTodayDate() }
 }
-watch(selectedDate, () => {
+watch(dateRange, () => {
   page.value = 1
   loadInvoices()
 })
@@ -284,20 +295,60 @@ onUnmounted(() => {
   clearInterval(refreshTimer)
   requestVersion++
 })
+
+const exporting = ref(false)
+const exportError = ref('')
+async function downloadList(kind) {
+  if (exporting.value || loading.value || submittingPayment.value || pendingPayment.value) return
+  exporting.value = true
+  exportError.value = ''
+  try {
+    await exportList({
+      type: 'payments',
+      kind,
+      params: {
+        status: status.value,
+        date_from: dateRange.value.from || undefined,
+        date_to: dateRange.value.to || undefined,
+        timezone: browserTimezone,
+      },
+      search: search.value,
+      currency: restaurant.settings.currency || 'USD',
+    })
+  } catch (error) {
+    exportError.value = error.message || 'Unable to export report. Please try again.'
+  } finally {
+    exporting.value = false
+  }
+}
 </script>
 
 <template>
   <section class="payments-page">
     <header class="payments-heading">
       <h1 class="text-2xl font-bold">{{ $t('Payments') }}</h1>
-      <button
-        class="payment-control"
-        :disabled="loading || submittingPayment"
-        @click="loadInvoices"
-      >
-        {{ $t('Refresh') }}
-      </button>
+      <div class="flex flex-wrap items-center gap-2">
+        <button
+          class="payment-control"
+          :disabled="loading || submittingPayment"
+          @click="loadInvoices"
+        >
+          {{ $t('Refresh') }}
+        </button>
+
+        <button
+          v-for="kind in ['excel', 'pdf']"
+          :key="kind"
+          type="button"
+          class="min-h-10 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900"
+          :disabled="exporting || loading || submittingPayment || !!pendingPayment"
+          @click="downloadList(kind)"
+        >
+          {{ $t(kind === 'excel' ? 'Excel' : 'PDF') }}
+        </button>
+      </div>
     </header>
+    <p v-if="exportError" role="alert" class="text-sm text-danger-600">{{ $t(exportError) }}</p>
     <div class="payments-toolbar">
       <button
         v-if="status === 'open'"
@@ -326,17 +377,14 @@ onUnmounted(() => {
       </label>
     </div>
     <div class="payments-date-filter">
-      <label for="payment-date" class="text-sm font-medium">{{ $t('Filter by day') }}</label>
-      <input
-        id="payment-date"
-        v-model="selectedDate"
-        type="date"
-        class="payment-control"
+      <DateRangeFilter
+        v-model="dateRange"
+        id-prefix="payment"
         :disabled="submittingPayment || !!pendingPayment"
       />
       <button
         class="payment-control"
-        :aria-pressed="selectedDate === getTodayDate()"
+        :aria-pressed="dateRange.from === getTodayDate() && dateRange.to === getTodayDate()"
         :disabled="submittingPayment || !!pendingPayment"
         @click="selectToday"
       >
@@ -344,9 +392,9 @@ onUnmounted(() => {
       </button>
       <button
         class="payment-control"
-        :aria-pressed="!selectedDate"
+        :aria-pressed="!dateRange.from && !dateRange.to"
         :disabled="submittingPayment || !!pendingPayment"
-        @click="selectedDate = ''"
+        @click="dateRange = { from: '', to: '' }"
       >
         {{ $t('All days') }}
       </button>
@@ -409,10 +457,19 @@ onUnmounted(() => {
               {{ $t(checkoutStatus(invoice).label) }}</span
             >
           </span>
-          <strong class="payment-amount">{{
-            money(isPaid(invoice) ? invoice.paid_amount : invoice.amount_due)
-          }}</strong>
-          <span class="payment-row-action">{{ $t(checkoutStatus(invoice).action) }}</span>
+          <span class="payment-date">
+            <span class="text-xs text-slate-400">{{ $t('Date') }}</span>
+            <time v-if="invoiceDate(invoice)" :datetime="invoiceDate(invoice)">{{
+              formatDateTime(invoiceDate(invoice))
+            }}</time>
+            <span v-else>—</span>
+          </span>
+          <span class="payment-actions">
+            <strong class="payment-amount">{{
+              money(isPaid(invoice) ? invoice.paid_amount : invoice.amount_due)
+            }}</strong>
+            <span class="payment-row-action">{{ $t(checkoutStatus(invoice).action) }}</span>
+          </span>
         </button>
       </div>
     </div>
@@ -688,7 +745,8 @@ onUnmounted(() => {
   border-radius: 16px;
 }
 .payment-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
   align-items: center;
   gap: 16px;
   width: 100%;
@@ -716,6 +774,20 @@ onUnmounted(() => {
 .payment-reference > span {
   color: #94a3b8;
   font-size: 12px;
+}
+.payment-date {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.payment-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
 }
 .payment-amount {
   flex-shrink: 0;
@@ -772,14 +844,20 @@ input:focus-visible {
     flex-basis: 100%;
   }
   .payment-row {
-    flex-wrap: wrap;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 12px;
   }
-  .payment-reference {
-    flex-basis: calc(100% - 100px);
+  .payment-date {
+    grid-column: 1;
+    grid-row: 2;
+    align-items: flex-start;
   }
-  .payment-row-action {
-    margin-left: auto;
+  .payment-actions {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
   }
   .payments-summary {
     flex-wrap: wrap;

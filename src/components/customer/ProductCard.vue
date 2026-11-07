@@ -1,4 +1,5 @@
 <script setup>
+import { kitchenItem } from '../../utils/kitchenItems'
 import { productPrice } from '../../utils/productOptions'
 import { t } from '../../languages'
 import { PlusIcon, FireIcon } from '@heroicons/vue/24/outline'
@@ -57,7 +58,7 @@ function quickAdd(event) {
     <div class="flex flex-1 flex-col gap-4 p-3 sm:p-4">
       <button class="text-left" @click="openDetail">
         <h3 class="line-clamp-2 text-sm leading-snug font-bold text-slate-950 sm:text-base">
-          {{ product.name }}
+          {{ kitchenItem({ product }).name }}
         </h3>
       </button>
       <div class="mt-auto flex items-center justify-between gap-2">

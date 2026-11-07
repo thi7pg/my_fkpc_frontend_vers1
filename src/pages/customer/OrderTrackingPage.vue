@@ -1,4 +1,5 @@
 <script setup>
+import CustomerItemDetails from '../../components/customer/CustomerItemDetails.vue'
 import { t } from '../../languages'
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
@@ -323,12 +324,7 @@ async function downloadReceipt() {
               ><ShoppingBagIcon class="h-6 w-6"
             /></span>
             <div class="min-w-0 flex-1">
-              <p class="text-sm leading-snug font-semibold text-slate-800">
-                {{ item.quantity }}&times; {{ item.product_name }}
-              </p>
-              <p v-if="item.notes" class="mt-1 text-xs whitespace-pre-wrap text-slate-500">
-                {{ item.notes }}
-              </p>
+              <CustomerItemDetails :item="item" show-quantity />
             </div>
             <strong class="shrink-0 text-sm text-slate-700">{{
               formatCurrency(item.subtotal, currency)

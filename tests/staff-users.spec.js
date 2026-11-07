@@ -4,7 +4,6 @@ const admin = { id: 1, name: 'Admin User', role: 'admin' }
 const staff = {
   id: 2,
   name: 'Kitchen Staff',
-  username: 'kitchen',
   email: 'kitchen@example.test',
   role: 'kitchen',
   is_active: true,
@@ -63,7 +62,7 @@ test('staff users can retry a failed request and load the staff list', async ({ 
   await retryRoute.fulfill({ json: { success: true, data: [staff] } })
 
   await expect(page.getByText('Kitchen Staff', { exact: true })).toBeVisible()
-  await expect(page.getByText('kitchen · kitchen@example.test', { exact: true })).toBeVisible()
+  await expect(page.getByText('kitchen@example.test', { exact: true })).toBeVisible()
   await expect(page.getByRole('alert')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Try again', exact: true })).toHaveCount(0)
   expect(requests).toBe(2)

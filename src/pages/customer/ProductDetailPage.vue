@@ -1,4 +1,5 @@
 <script setup>
+import { kitchenText, kitchenItem } from '../../utils/kitchenItems'
 import { productPrice } from '../../utils/productOptions'
 import { t } from '../../languages'
 import { ref, computed, onMounted, watch } from 'vue'
@@ -107,7 +108,9 @@ function addToCart() {
 
     <div>
       <div class="flex items-start justify-between gap-4">
-        <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">{{ product.name }}</h1>
+        <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">
+          {{ kitchenItem({ product }).name }}
+        </h1>
         <span class="shrink-0 text-xl font-bold text-primary-600 dark:text-primary-400">
           {{ formatCurrency(unitPrice, currency) }}
         </span>
@@ -122,7 +125,7 @@ function addToCart() {
         v-if="product.description"
         class="mt-4 text-sm leading-relaxed text-slate-600 dark:text-slate-300"
       >
-        {{ product.description }}
+        {{ kitchenItem({ product }).description }}
       </p>
       <p v-if="!product.available" class="mt-3 text-sm font-medium text-danger-600">
         {{ $t('This item is currently unavailable.') }}
@@ -136,7 +139,7 @@ function addToCart() {
       <legend class="font-semibold">{{ $t('Size') }}</legend>
       <label v-for="size in product.sizes" :key="size.name" class="mt-3 flex items-center gap-3">
         <input v-model="selectedSize" type="radio" name="size" :value="size.name" />
-        <span class="flex-1">{{ size.name }}</span
+        <span class="flex-1">{{ kitchenItem({ size: size.name }).size }}</span
         ><strong>{{ formatCurrency(productPrice(product, size.name), currency) }}</strong>
       </label>
     </fieldset>
@@ -148,7 +151,7 @@ function addToCart() {
         class="mt-3 flex items-center gap-3"
       >
         <input v-model="selectedToppings" type="checkbox" :value="topping.name" />
-        <span class="flex-1">{{ topping.name }}</span
+        <span class="flex-1">{{ kitchenText(topping.name) }}</span
         ><strong>+{{ formatCurrency(topping.price, currency) }}</strong>
       </label>
     </fieldset>

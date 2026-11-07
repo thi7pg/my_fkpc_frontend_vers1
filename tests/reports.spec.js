@@ -8,6 +8,18 @@ const admin = { id: 1, name: 'Admin User', role: 'admin' }
 function report(total) {
   return {
     total_revenue: total,
+    total_all_orders: 1,
+    daily_summary: [{ period: '2026-10-07', orders_count: 1, paid_invoices: 1, revenue: total }],
+    payment_summary: { cash: total, bank: 0, total_paid: total, outstanding: 7 },
+    order_status_counts: {
+      pending: 0,
+      confirmed: 0,
+      preparing: 0,
+      ready: 0,
+      completed: 1,
+      cancelled: 0,
+    },
+    product_sales: [{ name: 'Pizza', category: 'Food', quantity: 2, sales: total }],
     total_orders: 1,
     total_invoices: 1,
     series: [{ period: '2026-10-07', revenue: total, orders_count: 1 }],
@@ -231,26 +243,34 @@ test('report exports download the loaded date range and real totals', async ({ p
     const text = buffer.toString('latin1')
     if (extension === 'PDF') {
       expect(text.startsWith('%PDF-')).toBe(true)
-      expect(text).toContain('(Revenue Report)')
-      expect(text).toContain('(USD 168.00)')
-      expect(text).toContain('(Completed orders)')
-      expect(text).toContain('(Page 1 of 1)')
+      expect(text).toContain('(Date)')
+      expect(text).toContain('(168.00)')
+      expect(text).toContain('(TOTAL)')
+      expect(text).toContain('(Page 1 of 4)')
       const start = Number(text.match(/startxref\n(\d+)/)[1])
       expect(text.slice(start, start + 4)).toBe('xref')
     } else {
       const workbook = new ExcelJS.Workbook()
       await workbook.xlsx.load(buffer)
-      const summary = workbook.getWorksheet('Summary')
-      expect(summary.getCell('C5').value).toBe('2026-10-01')
-      expect(summary.getCell('C6').value).toBe('2026-10-20')
-      expect(summary.getCell('E12').value).toBe(168)
-      expect(summary.getCell('E14').value).toBe(14)
-      expect(summary.getCell('A16').value).toBe('Total invoices')
-      expect(summary.getCell('E16').value).toBe(1)
-      expect(summary.getCell('E12').numFmt).toContain('USD')
-      expect(summary.views[0].showGridLines).toBe(false)
-      expect(summary.pageSetup.printArea).toContain('A1:F')
-      expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(['Summary'])
+      const sales = workbook.getWorksheet('Sales')
+      expect(sales.getRow(1).values.slice(1)).toEqual([
+        'ID',
+        'Date',
+        'Orders',
+        'Paid invoices',
+        'Revenue (USD)',
+      ])
+      expect(sales.getRow(2).values.slice(1)).toEqual([1, '2026-10-07', 1, 1, 168])
+      expect(sales.getCell('E3').value).toEqual({ formula: 'SUM(E2:E2)', result: 168 })
+      expect(sales.getCell('E2').numFmt).toContain('USD')
+      expect(sales.views[0].showGridLines).toBe(false)
+      expect(sales.pageSetup.printArea).toContain('A1:E')
+      expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual([
+        'Sales',
+        'Payments',
+        'Products',
+        'Order status',
+      ])
     }
   }
 })
@@ -278,10 +298,10 @@ test('long PDF exports repeat table headings and retain the final row', async ({
   const text = Buffer.concat(chunks).toString('latin1')
   const pages = [...text.matchAll(/\/Type \/Page\b/g)].length
   expect(pages).toBeGreaterThan(1)
-  expect(text.match(/\(Period\)/g)).toHaveLength(pages)
+  expect(text.match(/\(Date\)/g)).toHaveLength(pages - 3)
   expect(text).toContain('(2026-04-30)')
   expect(text).toContain(`(Page ${pages} of ${pages})`)
-  expect(text).toContain('(Unavailable)')
+  expect(text).toContain('(TOTAL)')
 })
 
 test('Khmer exports preserve the selected language and system colors', async ({ page }) => {
@@ -307,9 +327,11 @@ test('Khmer exports preserve the selected language and system colors', async ({ 
   for await (const chunk of excelStream) excelChunks.push(chunk)
   const book = new ExcelJS.Workbook()
   await book.xlsx.load(Buffer.concat(excelChunks))
-  expect(book.getWorksheet('Summary').getCell('A1').value).toBe('របាយការណ៍')
-  expect(book.getWorksheet('Summary').getCell('A11').fill.fgColor.argb).toBe('FFFFF0F3')
-  expect(book.getWorksheet('Summary').getCell('A1').font.name).toBe('Khmer OS Siemreap')
+  expect(book.getWorksheet('Sales').getCell('B1').value).toBe(
+    '\u1780\u17b6\u179b\u1794\u179a\u17b7\u1785\u17d2\u1786\u17c1\u1791',
+  )
+  expect(book.getWorksheet('Sales').getCell('A1').fill.fgColor.argb).toBe('FFDCE9EE')
+  expect(book.getWorksheet('Sales').getCell('A1').font.name).toBe('Khmer OS Siemreap')
 })
 
 test('report shows unavailable status counts honestly and supports custom dates', async ({

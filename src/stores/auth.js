@@ -41,10 +41,10 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function login(username, password) {
+  async function login(name, password) {
     loading.value = true
     try {
-      const res = await authService.login(username, password)
+      const res = await authService.login(name, password)
       persist(res.data.user, res.data.token)
       return res.data.user
     } finally {

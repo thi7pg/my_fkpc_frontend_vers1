@@ -40,12 +40,13 @@ async function mockApi(page, options = {}) {
     let data
     if (options.failLogout && endpoint === '/auth/logout')
       return route.fulfill({ status: 503, json: { message: 'Offline' } })
-    if (endpoint === '/auth/login')
+    if (endpoint === '/auth/login') {
+      expect(body).toEqual({ name: `${options.role || 'cashier'} User`, password: 'test-password' })
       data = {
         user: { id: 2, name: 'Cashier User', role: options.role || 'cashier' },
         token: 'test-token',
       }
-    else if (endpoint === '/auth/me')
+    } else if (endpoint === '/auth/me')
       data = { user: { id: 2, name: 'Cashier User', role: options.role || 'cashier' } }
     else if (endpoint === '/auth/logout') data = null
     else if (endpoint.startsWith('/menu/')) data = menu
@@ -68,14 +69,7 @@ async function mockApi(page, options = {}) {
     else if (endpoint === '/cashier/invoices/1/pay') {
       paid = true
       data = sessionPayment(true)
-    } else if (endpoint.startsWith('/demo-payments/'))
-      data = {
-        amount: 9.25,
-        status: 'pending',
-        expired: false,
-        qr_svg: '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240"></svg>',
-      }
-    else if (endpoint === '/admin/dashboard')
+    } else if (endpoint === '/admin/dashboard')
       data = {
         today_revenue: 0,
         today_orders: 1,
@@ -115,7 +109,7 @@ function sessionPayment(paid, checkoutRequested = true) {
 
 async function login(page, role = 'cashier') {
   await page.goto('/login')
-  await page.getByLabel('Username', { exact: true }).fill(role)
+  await page.getByLabel('Name', { exact: true }).fill(`${role} User`)
   await page.getByLabel('Password', { exact: true }).fill('test-password')
   await page.getByRole('button', { name: 'Sign In', exact: true }).click()
   await expect(page).toHaveURL(
@@ -184,8 +178,8 @@ test('customer places an order without personal information', async ({ page }) =
   await page.getByRole('button', { name: 'Place Order', exact: true }).click()
   await expect(page).toHaveURL(/\/order\/track\/ORD-000001$/)
   const submitted = requests.find((r) => r.endpoint === '/orders' && r.body)
-  expect(submitted.body.customer_name).toBe('Table 003')
-  expect(submitted.body.payment_method).toBe('cash')
+  expect(submitted.body).not.toHaveProperty('customer_name')
+  expect(submitted.body).not.toHaveProperty('payment_method')
   expect(submitted.body).not.toHaveProperty('customer_phone')
   expect(submitted.body.items).toEqual([{ product_id: 1, quantity: 1, toppings: [] }])
   await expect(page.getByRole('link', { name: 'Checkout', exact: true })).toBeVisible()
@@ -292,9 +286,11 @@ test('cashier order date and payment status filters reach the API', async ({ pag
   const requests = await mockApi(page)
   await login(page)
   await page.goto('/cashier/orders')
-  await page.locator('#order-day').fill('2026-10-05')
+  await page.locator('#order-from').fill('2026-10-05')
   await expect
-    .poll(() => requests.some((r) => r.endpoint === '/orders' && r.query.date === '2026-10-05'))
+    .poll(() =>
+      requests.some((r) => r.endpoint === '/orders' && r.query.date_from === '2026-10-05'),
+    )
     .toBe(true)
   await page.getByRole('button', { name: 'Mark Confirmed', exact: true }).click()
   await expect

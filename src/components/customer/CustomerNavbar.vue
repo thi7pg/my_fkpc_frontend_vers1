@@ -45,7 +45,11 @@ function goBack() {
         <ArrowLeftIcon class="h-5 w-5" />
       </button>
       <FantasiaBrand
-        v-if="!isCart && !isTracking && !['receipt', 'session-checkout'].includes(route.name)"
+        v-if="
+          !isCart &&
+          !isTracking &&
+          !['receipt', 'session-checkout', 'product-detail'].includes(route.name)
+        "
         :light="!isTracking"
         :compact="showBack"
         :logo-only="isTracking"

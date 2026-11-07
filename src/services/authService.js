@@ -1,8 +1,8 @@
 import api from './api'
 
 export const authService = {
-  login(username, password) {
-    return api.post('/auth/login', { username, password })
+  login(name, password) {
+    return api.post('/auth/login', { name, password })
   },
   logout() {
     return api.post('/auth/logout')

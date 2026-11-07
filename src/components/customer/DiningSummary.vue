@@ -1,4 +1,5 @@
 <script setup>
+import CustomerItemDetails from './CustomerItemDetails.vue'
 import { computed } from 'vue'
 import { formatCurrency } from '../../utils/format'
 
@@ -51,19 +52,16 @@ function paymentLabel(order) {
       <ul v-if="order.status !== 'cancelled'" class="mt-3 space-y-2 text-sm">
         <li v-for="item in items" :key="item.id">
           <div class="flex justify-between gap-3">
-            <span>{{ item.quantity }}× {{ item.product_name }}</span
-            ><span>{{ formatCurrency(item.subtotal, currency) }}</span>
+            <CustomerItemDetails :item="item" show-quantity />
+            <span class="shrink-0">{{ formatCurrency(item.subtotal, currency) }}</span>
           </div>
-          <p v-if="item.notes" class="mt-1 whitespace-pre-wrap text-xs text-slate-500">
-            {{ item.notes }}
-          </p>
         </li>
       </ul>
     </div>
     <ul v-if="itemsWithoutOrder.length" class="mb-4 space-y-2 text-sm">
       <li v-for="item in itemsWithoutOrder" :key="item.id" class="flex justify-between gap-3">
-        <span>{{ item.quantity }}× {{ item.product_name }}</span
-        ><span>{{ formatCurrency(item.subtotal, currency) }}</span>
+        <CustomerItemDetails :item="item" show-quantity />
+        <span class="shrink-0">{{ formatCurrency(item.subtotal, currency) }}</span>
       </li>
     </ul>
     <div class="space-y-2 border-t border-slate-200 pt-4 dark:border-slate-700">

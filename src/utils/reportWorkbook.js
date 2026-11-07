@@ -1,83 +1,84 @@
-import { t, locale } from '../languages'
-import { reportGroupingLabel } from './reportLabels'
+﻿import { locale, t } from '../languages'
 
 export function styleReportWorkbook(book, data, options) {
   const font = locale.value === 'km' ? 'Khmer OS Siemreap' : 'Calibri'
-  const pink = 'FFCE0233'
-  const pale = 'FFFFF0F3'
-  const fill = (color) => ({ type: 'pattern', pattern: 'solid', fgColor: { argb: color } })
-  const sheet = (name, widths) => {
-    const result = book.addWorksheet(name, {
-      properties: { tabColor: { argb: pink }, defaultRowHeight: 30 },
-      views: [{ showGridLines: false, zoomScale: 100 }],
+  for (const section of data.sections) {
+    const sheet = book.addWorksheet(section.name, {
+      views: [{ state: 'frozen', ySplit: 1, showGridLines: false }],
       pageSetup: {
         paperSize: 9,
         orientation: 'portrait',
         fitToPage: true,
         fitToWidth: 1,
         fitToHeight: 0,
-        horizontalCentered: true,
-        margins: { left: 0.35, right: 0.35, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 },
-      },
-      headerFooter: {
-        oddFooter: '&L' + (options.brand || 'Reports').replaceAll('&', '&&') + '&R&P / &N',
       },
     })
-    result.columns = widths.map((width) => ({ width }))
-    return result
-  }
-  const merged = (target, range, value, settings = {}) => {
-    target.mergeCells(range)
-    const cell = target.getCell(range.split(':')[0])
-    cell.value = value
-    cell.font = { name: font, size: 11, color: { argb: 'FF0F172A' }, ...settings }
-    cell.alignment = { vertical: 'middle', wrapText: true, indent: 1 }
-    return cell
-  }
-  const title = (target, lastColumn) => {
-    merged(target, `A1:${lastColumn}2`, t('Reports'), {
-      size: 22,
-      bold: true,
-      color: { argb: pink },
-    }).fill = fill(pale)
-    target.getRow(1).height = 26
-    target.getRow(2).height = 26
-    merged(target, `A3:${lastColumn}3`, options.brand || 'Reports', {
-      bold: true,
-      color: { argb: 'FF64748B' },
-    })
-  }
-  const summary = sheet('Summary', [22, 14, 14, 18, 16, 16])
-  title(summary, 'F')
-  const grouping = reportGroupingLabel(data.range.groupBy)
-  for (const [index, label, value] of [
-    [5, t('From'), data.range.from],
-    [6, t('To'), data.range.to],
-    [7, t('Currency'), data.currency],
-    [8, t('Report grouping'), grouping],
-    [9, t('Generated'), data.generated],
-  ]) {
-    merged(summary, `A${index}:B${index}`, label, { color: { argb: 'FF64748B' } })
-    merged(summary, `C${index}:F${index}`, value, { bold: true })
-    summary.getRow(index).height = 33
-  }
-  merged(summary, 'A11:D11', t('Summary'), { bold: true, color: { argb: pink } }).fill = fill(pale)
-  merged(summary, 'E11:F11', t('Value'), { bold: true, color: { argb: pink } }).fill = fill(pale)
-  data.metrics.forEach(([label, value, monetary], index) => {
-    const row = 12 + index
-    const labelCell = merged(summary, `A${row}:D${row}`, options.metricLabel(label))
-    const valueCell = merged(summary, `E${row}:F${row}`, value, {
-      size: monetary ? 20 : 15,
-      bold: true,
-      color: { argb: monetary ? pink : 'FF0F172A' },
-    })
-    valueCell.alignment = { vertical: 'middle', horizontal: 'right', indent: 1 }
-    valueCell.numFmt = monetary ? options.moneyFormat : '#,##0'
-    for (const cell of [labelCell, valueCell]) {
-      cell.fill = fill(index % 2 ? 'FFF8FAFC' : 'FFFFFFFF')
-      cell.border = { bottom: { style: 'hair', color: { argb: 'FFE2E8F0' } } }
+    sheet.columns = section.widths.map((width) => ({ width }))
+    sheet.addRow(section.headers)
+    section.rows.forEach((row) => sheet.addRow(row.map((value) => value ?? t('Unavailable'))))
+    const end = sheet.rowCount
+    let total
+    if (section.totals) {
+      total = sheet.addRow(section.totals.map((value) => value ?? t('Unavailable')))
+      for (const column of section.numeric) {
+        if (
+          section.rows.length &&
+          section.totals[column] != null &&
+          section.rows.every((row) => typeof row[column] === 'number')
+        ) {
+          const letter = sheet.getColumn(column + 1).letter
+          total.getCell(column + 1).value = {
+            formula: `SUM(${letter}2:${letter}${end})`,
+            result: section.totals[column],
+          }
+        }
+      }
     }
-    summary.getRow(row).height = monetary ? 52 : 38
-  })
-  summary.pageSetup.printArea = `A1:F${11 + data.metrics.length}`
+    sheet.eachRow((row, index) => {
+      row.height = 28
+      row.eachCell({ includeEmpty: true }, (cell, column) => {
+        cell.font = {
+          name: font,
+          size: 11,
+          bold: index === 1 || index === total?.number,
+          color: { argb: 'FF0F172A' },
+        }
+        cell.alignment = {
+          vertical: 'middle',
+          horizontal: section.numeric.includes(column - 1) && index > 1 ? 'right' : 'left',
+          indent: 1,
+          wrapText: true,
+        }
+        cell.border = {
+          bottom: { style: 'thin', color: { argb: 'FFD7DEE2' } },
+          right: { style: 'thin', color: { argb: 'FFD7DEE2' } },
+        }
+        if (index === 1 || index === total?.number)
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: index === 1 ? 'FFDCE9EE' : 'FFECF3F6' },
+          }
+        if (index > 1 && section.numeric.includes(column - 1))
+          cell.numFmt = section.money.includes(column - 1) ? options.moneyFormat : '#,##0'
+      })
+    })
+    if (total && section.numeric[0] > 1)
+      sheet.mergeCells(total.number, 1, total.number, section.numeric[0])
+    const lastColumn = sheet.getColumn(section.headers.length).letter
+    sheet.autoFilter = `A1:${lastColumn}${end}`
+    sheet.pageSetup.printTitlesRow = '1:1'
+    sheet.addRow([])
+    const range = sheet.addRow([`${t('From')}: ${data.range.from}   ${t('To')}: ${data.range.to}`])
+    sheet.mergeCells(range.number, 1, range.number, section.headers.length)
+    range.font = { name: font, size: 10 }
+    if (section.note) {
+      const note = sheet.addRow([section.note])
+      sheet.mergeCells(note.number, 1, note.number, section.headers.length)
+      note.font = { name: font, size: 10 }
+      note.alignment = { wrapText: true }
+      note.height = 45
+    }
+    sheet.pageSetup.printArea = `A1:${lastColumn}${sheet.rowCount}`
+  }
 }

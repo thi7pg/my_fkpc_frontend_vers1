@@ -45,11 +45,6 @@ const routes = [
         component: () => import('../pages/customer/Receipt.vue'),
       },
       {
-        path: 'payment/:orderNumber',
-        name: 'acleda-payment',
-        component: () => import('../pages/customer/PaymentPage.vue'),
-      },
-      {
         path: 'track/:orderNumber',
         name: 'order-tracking',
         component: () => import('../pages/customer/OrderTrackingPage.vue'),

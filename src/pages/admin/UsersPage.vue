@@ -19,7 +19,6 @@ const modalOpen = ref(false)
 const editing = ref(null)
 const form = ref({
   name: '',
-  username: '',
   email: '',
   password: '',
   role: 'kitchen',
@@ -47,7 +46,7 @@ onMounted(load)
 
 function openCreate() {
   editing.value = null
-  form.value = { name: '', username: '', email: '', password: '', role: 'kitchen', is_active: true }
+  form.value = { name: '', email: '', password: '', role: 'kitchen', is_active: true }
   modalOpen.value = true
 }
 
@@ -55,7 +54,6 @@ function openEdit(user) {
   editing.value = user
   form.value = {
     name: user.name,
-    username: user.username,
     email: user.email,
     password: '',
     role: user.role,
@@ -150,7 +148,7 @@ async function doDelete() {
           </span>
           <div>
             <p class="text-sm font-medium text-slate-900 dark:text-slate-100">{{ user.name }}</p>
-            <p class="text-xs text-slate-400">{{ user.username }} · {{ user.email }}</p>
+            <p class="text-xs text-slate-400">{{ user.email }}</p>
           </div>
         </div>
         <div class="flex items-center gap-3">
@@ -185,20 +183,6 @@ async function doDelete() {
             v-model="form.name"
             type="text"
             required
-            class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-primary-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900"
-          />
-        </div>
-        <div>
-          <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">{{
-            $t('Username')
-          }}</label>
-          <input
-            v-model="form.username"
-            type="text"
-            required
-            maxlength="50"
-            pattern="[a-z0-9_.\-]+"
-            autocomplete="off"
             class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-primary-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900"
           />
         </div>

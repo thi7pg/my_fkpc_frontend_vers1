@@ -6,8 +6,6 @@ Vue application for table ordering, order tracking, kitchen operations, and cash
 
 Run `npm install`, copy `.env.example` to `.env`, and set `VITE_API_BASE_URL` to the Laravel API URL. Start the frontend with `npm run dev`. Vite proxies `/api` requests to the configured backend during development.
 
-The retained ACLEDA demo route is for development and is outside the counter payment flow. It does not verify real bank transfers.
-
 ## Ordering and payment
 
 1. Customers scan their table QR, choose products and options, then select **Place Order** in the cart. They can order more during the same dining session; each order stays separate for kitchen tracking.

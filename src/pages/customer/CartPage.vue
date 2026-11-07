@@ -1,4 +1,5 @@
 <script setup>
+import CustomerItemDetails from '../../components/customer/CustomerItemDetails.vue'
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { MinusIcon, PlusIcon, TrashIcon, ShoppingCartIcon } from '@heroicons/vue/24/outline'
@@ -64,9 +65,7 @@ async function placeOrder() {
       return
     }
     const result = await orderService.place({
-      payment_method: 'cash',
       qr_token: qrToken,
-      customer_name: `Table ${table.table_number}`,
       items,
     })
     const orderNumber = result.data.order_number
@@ -130,7 +129,7 @@ function backToMenu() {
             </div>
             <div class="flex min-w-0 flex-1 flex-col">
               <div class="flex items-start justify-between gap-2">
-                <p class="font-medium text-slate-900 dark:text-slate-100">{{ item.name }}</p>
+                <CustomerItemDetails :item="item" :show-notes="false" />
                 <button
                   :aria-label="$t('Remove {name}', { name: item.name })"
                   class="customer-icon-button cart-remove text-slate-400 hover:text-danger-600"

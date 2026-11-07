@@ -53,7 +53,15 @@ for (const language of ['km', 'ko']) {
         status: 'preparing',
         created_at: '2026-10-20T06:00:00Z',
         total_amount: 10,
-        items: [{ id: 1, product_name: 'Pizza', quantity: 1, subtotal: 10 }],
+        items: [
+          {
+            id: 1,
+            product_name: 'Pizza (L, Cheese 10%)',
+            quantity: 1,
+            subtotal: 10,
+            notes: 'No onion',
+          },
+        ],
       }
       return route.fulfill({
         json: {
@@ -83,7 +91,10 @@ for (const language of ['km', 'ko']) {
     await expect(page.getByText(dictionary['Total for this table'], { exact: true })).toBeVisible()
     await expect(page.locator('main')).not.toContainText('Not checked out')
     await expect(page.locator('main')).not.toContainText('Total for this visit')
-    await expect(page.locator('main')).toContainText('Pizza')
+    await expect(page.locator('main')).toContainText(dictionary.Pizza)
+    await expect(page.getByText(dictionary.Large + ' (L)', { exact: false })).toBeVisible()
+    await expect(page.getByText('+ ' + dictionary.Cheese + ' 10%', { exact: true })).toBeVisible()
+    await expect(page.getByText(dictionary['No onion'], { exact: true })).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   })
 }

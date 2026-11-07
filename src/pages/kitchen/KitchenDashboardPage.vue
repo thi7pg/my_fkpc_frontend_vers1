@@ -1,6 +1,7 @@
 ﻿<script setup>
 import KitchenOrderItems from '../../components/staff/KitchenOrderItems.vue'
 import { t } from '../../languages'
+import { kitchenText } from '../../utils/kitchenItems'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useToast } from 'vue-toastification'
 import { kitchenService } from '../../services/kitchenService'
@@ -20,7 +21,6 @@ const refreshing = ref(false)
 const error = ref('')
 const now = ref(Date.now())
 const fullscreen = ref(false)
-const dayFilter = ref('all')
 const processing = ref(new Set())
 const board = ref({ pending: [], confirmed: [], preparing: [], ready: [] })
 let pollTimer
@@ -73,11 +73,9 @@ const visibleBoard = computed(() =>
   Object.fromEntries(
     columns.map(({ key }) => [
       key,
-      [...(board.value[key] || []), ...(key === 'pending' ? board.value.confirmed : [])]
-        .filter((order) => dayFilter.value === 'all' || day(order.created_at) === today.value)
-        .sort(
-          (a, b) => new Date(a.created_at) - new Date(b.created_at) || Number(a.id) - Number(b.id),
-        ),
+      [...(board.value[key] || []), ...(key === 'pending' ? board.value.confirmed : [])].sort(
+        (a, b) => new Date(a.created_at) - new Date(b.created_at) || Number(a.id) - Number(b.id),
+      ),
     ]),
   ),
 )
@@ -180,11 +178,6 @@ onUnmounted(() => {
         <h1 class="text-2xl font-bold">{{ $t('Kitchen') }}</h1>
       </div>
       <div class="flex flex-wrap items-center gap-2">
-        <label class="sr-only" for="kitchen-day">{{ $t('Filter by day') }}</label>
-        <select id="kitchen-day" v-model="dayFilter" class="kitchen-control">
-          <option value="all">{{ $t('All days') }}</option>
-          <option value="today">{{ $t('Today') }}</option>
-        </select>
         <button class="kitchen-control" :disabled="refreshing" @click="load">
           {{ refreshing ? $t('Refreshing...') : $t('Refresh') }}
         </button>
@@ -202,13 +195,6 @@ onUnmounted(() => {
     </div>
     <div v-if="olderCount" class="kitchen-notice">
       {{ olderCount }} {{ $t('unfinished orders from earlier days') }}.
-      <button
-        v-if="dayFilter === 'today'"
-        class="underline font-semibold"
-        @click="dayFilter = 'all'"
-      >
-        {{ $t('Show all') }}
-      </button>
     </div>
     <p v-if="loading" class="py-10 text-center" role="status">{{ $t('Loading...') }}</p>
     <div v-else class="kitchen-columns">
@@ -243,7 +229,9 @@ onUnmounted(() => {
             {{ $t('Ordered at') }} {{ formatTime(order.created_at) }}
           </p>
           <KitchenOrderItems :items="order.items || []" />
-          <p v-if="order.notes" class="kitchen-note">{{ $t('Note:') }} {{ order.notes }}</p>
+          <p v-if="order.notes" class="kitchen-note">
+            {{ $t('Note:') }} {{ kitchenText(order.notes) }}
+          </p>
           <button class="kitchen-control font-semibold" @click="viewDetails(order)">
             {{ $t('View details') }}
           </button>
@@ -280,7 +268,7 @@ onUnmounted(() => {
         </header>
         <h3 class="mt-4 font-bold">{{ $t('Order details') }}</h3>
         <p v-if="selectedOrder.notes" class="kitchen-note">
-          {{ $t('Note:') }} {{ selectedOrder.notes }}
+          {{ $t('Note:') }} {{ kitchenText(selectedOrder.notes) }}
         </p>
         <KitchenOrderItems :items="selectedOrder.items || []" large />
       </template>

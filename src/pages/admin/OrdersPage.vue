@@ -18,6 +18,8 @@ import { formatCurrency, formatDateTime } from '../../utils/format'
 import OrderActions from '../../components/staff/OrderActions.vue'
 import OrderDetails from '../../components/staff/OrderDetails.vue'
 import Modal from '../../components/ui/Modal.vue'
+import DateRangeFilter from '../../components/ui/DateRangeFilter.vue'
+import { exportList } from '../../utils/listDocuments'
 import SkeletonLoader from '../../components/ui/SkeletonLoader.vue'
 import EmptyState from '../../components/ui/EmptyState.vue'
 
@@ -28,7 +30,7 @@ const restaurant = useRestaurantStore()
 const currency = computed(() => restaurant.settings.currency || 'USD')
 const money = (value) => formatCurrency(value, currency.value)
 const statusFilter = ref('')
-const selectedDay = ref('')
+const dateRange = ref({ from: '', to: '' })
 const page = ref(1)
 const processing = ref([])
 const busy = computed(() => processing.value.length > 0)
@@ -77,7 +79,7 @@ function getTodayDate() {
   }).format(new Date())
 }
 function selectToday() {
-  selectedDay.value = getTodayDate()
+  dateRange.value = { from: getTodayDate(), to: getTodayDate() }
 }
 
 async function load() {
@@ -85,7 +87,8 @@ async function load() {
   closeModal()
   await store.fetchOrders({
     status: statusFilter.value || undefined,
-    date: selectedDay.value || undefined,
+    date_from: dateRange.value.from || undefined,
+    date_to: dateRange.value.to || undefined,
     page: page.value,
   })
   if (version !== loadVersion || store.error) return
@@ -99,7 +102,7 @@ onUnmounted(() => {
   detailVersion++
   loadVersion++
 })
-watch([statusFilter, selectedDay], () => {
+watch([statusFilter, dateRange], () => {
   page.value = 1
   load()
 })
@@ -184,21 +187,60 @@ async function cancelOrder() {
     processing.value = processing.value.filter((id) => id !== order.id)
   }
 }
+
+const exporting = ref(false)
+const exportError = ref('')
+async function downloadList(kind) {
+  if (exporting.value || store.loading || busy.value) return
+  exporting.value = true
+  exportError.value = ''
+  try {
+    await exportList({
+      type: 'orders',
+      kind,
+      params: {
+        status: statusFilter.value || undefined,
+        date_from: dateRange.value.from || undefined,
+        date_to: dateRange.value.to || undefined,
+      },
+      search: search.value,
+      currency: currency.value,
+    })
+  } catch (error) {
+    exportError.value = error.message || 'Unable to export report. Please try again.'
+  } finally {
+    exporting.value = false
+  }
+}
 </script>
 
 <template>
   <div class="flex flex-col gap-6">
     <header class="flex flex-wrap items-center justify-between gap-3">
       <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">{{ $t('Orders') }}</h1>
-      <button
-        type="button"
-        class="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
-        :disabled="store.loading || busy"
-        @click="load"
-      >
-        <ArrowPathIcon class="h-4 w-4" aria-hidden="true" /> {{ $t('Refresh') }}
-      </button>
+      <div class="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          class="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+          :disabled="store.loading || busy"
+          @click="load"
+        >
+          <ArrowPathIcon class="h-4 w-4" aria-hidden="true" /> {{ $t('Refresh') }}
+        </button>
+
+        <button
+          v-for="kind in ['excel', 'pdf']"
+          :key="kind"
+          type="button"
+          class="min-h-10 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900"
+          :disabled="exporting || store.loading || busy"
+          @click="downloadList(kind)"
+        >
+          {{ $t(kind === 'excel' ? 'Excel' : 'PDF') }}
+        </button>
+      </div>
     </header>
+    <p v-if="exportError" role="alert" class="text-sm text-danger-600">{{ $t(exportError) }}</p>
 
     <div class="card space-y-4 p-4">
       <div class="flex flex-wrap items-center gap-3">
@@ -231,18 +273,11 @@ async function cancelOrder() {
       <div
         class="flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4 dark:border-slate-800"
       >
-        <label for="order-day" class="text-sm font-semibold">{{ $t('Filter by day') }}</label>
-        <input
-          id="order-day"
-          v-model="selectedDay"
-          :disabled="busy"
-          type="date"
-          class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-900"
-        />
+        <DateRangeFilter v-model="dateRange" id-prefix="order" :disabled="busy" />
         <button
           type="button"
           class="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold transition-colors hover:bg-slate-100 aria-pressed:border-primary-600 aria-pressed:bg-primary-50 aria-pressed:text-primary-600 dark:border-slate-700 dark:hover:bg-slate-800 dark:aria-pressed:border-primary-400 dark:aria-pressed:bg-primary-500/10 dark:aria-pressed:text-primary-400"
-          :aria-pressed="selectedDay === getTodayDate()"
+          :aria-pressed="dateRange.from === getTodayDate() && dateRange.to === getTodayDate()"
           :disabled="busy"
           @click="selectToday"
         >
@@ -251,9 +286,9 @@ async function cancelOrder() {
         <button
           type="button"
           class="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold transition-colors hover:bg-slate-100 aria-pressed:border-primary-600 aria-pressed:bg-primary-50 aria-pressed:text-primary-600 dark:border-slate-700 dark:hover:bg-slate-800 dark:aria-pressed:border-primary-400 dark:aria-pressed:bg-primary-500/10 dark:aria-pressed:text-primary-400"
-          :aria-pressed="!selectedDay"
+          :aria-pressed="!dateRange.from && !dateRange.to"
           :disabled="busy"
-          @click="selectedDay = ''"
+          @click="dateRange = { from: '', to: '' }"
         >
           {{ $t('All days') }}
         </button>

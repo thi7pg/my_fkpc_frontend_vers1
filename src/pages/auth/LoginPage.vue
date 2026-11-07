@@ -8,7 +8,7 @@ const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 
-const username = ref('')
+const name = ref('')
 const password = ref('')
 const showPassword = ref(false)
 const error = ref('')
@@ -19,7 +19,7 @@ async function onSubmit() {
   error.value = ''
   loading.value = true
   try {
-    const user = await auth.login(username.value, password.value)
+    const user = await auth.login(name.value, password.value)
     const redirect = route.query.redirect
     if (redirect) {
       router.push(redirect)
@@ -44,23 +44,21 @@ async function onSubmit() {
   <form class="flex flex-col gap-4" @submit.prevent="onSubmit">
     <div>
       <label
-        for="username"
+        for="name"
         class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200"
-        >{{ $t('Username') }}</label
+        >{{ $t('Name') }}</label
       >
       <div class="relative">
         <UserIcon
           class="pointer-events-none absolute left-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-400"
         />
         <input
-          id="username"
-          v-model="username"
+          id="name"
+          v-model="name"
           type="text"
           required
           autocomplete="username"
-          :placeholder="$t('Enter your username')"
-          maxlength="50"
-          pattern="[a-z0-9_.\-]+"
+          :placeholder="$t('Enter your name')"
           class="w-full rounded-xl border border-slate-200 py-2.5 pl-10 pr-4 text-sm focus:border-primary-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900"
         />
       </div>

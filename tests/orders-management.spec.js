@@ -92,7 +92,8 @@ async function mockOrders(page, initialOrders = orders) {
       const filtered = savedOrders.filter(
         (order) =>
           (!query.status || order.status === query.status) &&
-          (!query.date || order.created_at.startsWith(query.date)),
+          (!query.date_from || order.created_at.slice(0, 10) >= query.date_from) &&
+          (!query.date_to || order.created_at.slice(0, 10) <= query.date_to),
       )
       const pageNumber = Number(query.page || 1)
       return route.fulfill({
@@ -226,8 +227,10 @@ test('order date and status filters reset pagination and reach the API', async (
   ).toBeVisible()
   await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeDisabled()
   await page.getByRole('button', { name: 'Today', exact: true }).click()
-  await expect.poll(() => lists.at(-1)).toMatchObject({ page: '1', date: '2026-10-08' })
-  await expect(page.getByLabel('Filter by day', { exact: true })).toHaveValue('2026-10-08')
+  await expect
+    .poll(() => lists.at(-1))
+    .toMatchObject({ page: '1', date_from: '2026-10-08', date_to: '2026-10-08' })
+  await expect(page.getByLabel('From', { exact: true })).toHaveValue('2026-10-08')
   await page.getByRole('button', { name: 'Next', exact: true }).click()
   await expect.poll(() => lists.at(-1)?.page).toBe('2')
   await page.getByRole('combobox', { name: 'Order status', exact: true }).selectOption('preparing')
@@ -235,14 +238,18 @@ test('order date and status filters reset pagination and reach the API', async (
     .poll(() => lists.at(-1))
     .toMatchObject({
       page: '1',
-      date: '2026-10-08',
+      date_from: '2026-10-08',
       status: 'preparing',
     })
   await expect(
     page.getByRole('button', { name: 'View order ORD-000002', exact: true }),
   ).toBeVisible()
-  await page.getByLabel('Filter by day', { exact: true }).fill('2026-10-07')
-  await expect.poll(() => lists.at(-1)?.date).toBe('2026-10-07')
+  await page.getByLabel('From', { exact: true }).fill('2026-10-07')
+  await page.getByLabel('To', { exact: true }).fill('2026-10-09')
+  await expect
+    .poll(() => lists.at(-1))
+    .toMatchObject({ date_from: '2026-10-07', date_to: '2026-10-09' })
+  await expect.poll(() => lists.at(-1)?.date_from).toBe('2026-10-07')
   await page.getByRole('button', { name: 'All days', exact: true }).click()
   await expect.poll(() => lists.at(-1)).toEqual({ page: '1', status: 'preparing' })
 })
@@ -252,11 +259,11 @@ for (const action of ['advance', 'cancel']) {
     const pendingOrders = orders.map((order) => ({ ...order, status: 'pending' }))
     const { lists, changes } = await mockOrders(page, pendingOrders)
     await page.goto('/dashboard/orders')
-    await page.getByLabel('Filter by day', { exact: true }).fill('2026-10-08')
+    await page.getByLabel('From', { exact: true }).fill('2026-10-08')
     await page.getByRole('combobox', { name: 'Order status', exact: true }).selectOption('pending')
     await expect
       .poll(() => lists.at(-1))
-      .toEqual({ page: '1', date: '2026-10-08', status: 'pending' })
+      .toEqual({ page: '1', date_from: '2026-10-08', status: 'pending' })
     await page.getByRole('button', { name: 'Next', exact: true }).click()
     await expect(
       page.getByRole('button', { name: 'View order ORD-000003', exact: true }),
@@ -279,7 +286,7 @@ for (const action of ['advance', 'cancel']) {
     }
     await expect
       .poll(() => lists.at(-1))
-      .toEqual({ page: '1', date: '2026-10-08', status: 'pending' })
+      .toEqual({ page: '1', date_from: '2026-10-08', status: 'pending' })
     await expect(
       page.getByRole('button', { name: 'View order ORD-000001', exact: true }),
     ).toBeVisible()

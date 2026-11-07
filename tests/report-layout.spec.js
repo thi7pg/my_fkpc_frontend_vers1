@@ -26,6 +26,15 @@ async function setup(page) {
       ? {
           group_by: 'day',
           total_revenue: 80.5,
+          payment_summary: { cash: 50, bank: 30.5, total_paid: 80.5, outstanding: 12 },
+          order_status_counts: {
+            pending: 1,
+            confirmed: 0,
+            preparing: 0,
+            ready: 0,
+            completed: 10,
+            cancelled: 0,
+          },
           total_all_orders: 11,
           total_orders: 11,
           total_invoices: 5,
@@ -84,7 +93,7 @@ test('overview has four charts and Details reveals searchable real-data tables',
   await expect(table).toContainText('No data yet')
 })
 
-test('Excel exports a simple summary and PDF retains detailed sections', async ({ page }) => {
+test('Excel and PDF export a simple sales table', async ({ page }) => {
   await setup(page)
   for (const kind of ['Excel', 'PDF']) {
     const downloaded = page.waitForEvent('download')
@@ -96,14 +105,38 @@ test('Excel exports a simple summary and PDF retains detailed sections', async (
     if (kind === 'Excel') {
       const book = new ExcelJS.Workbook()
       await book.xlsx.load(buffer)
-      expect(book.worksheets.map((sheet) => sheet.name)).toEqual(['Summary'])
-      expect(book.getWorksheet('Summary').getCell('E12').value).toBe(80.5)
-      expect(book.getWorksheet('Summary').getCell('E17').value).toBe(5)
+      expect(book.worksheets.map((sheet) => sheet.name)).toEqual([
+        'Sales',
+        'Payments',
+        'Products',
+        'Order status',
+      ])
+      expect(book.getWorksheet('Sales').getRow(1).values.slice(1)).toEqual([
+        'ID',
+        'Date',
+        'Orders',
+        'Paid invoices',
+        'Revenue (USD)',
+      ])
+      expect(book.getWorksheet('Sales').getCell('E7').value).toEqual({
+        formula: 'SUM(E2:E6)',
+        result: 80.5,
+      })
+      expect(book.getWorksheet('Sales').getCell('C7').value.result).toBe(11)
+      expect(book.getWorksheet('Sales').getCell('D7').value.result).toBe(5)
+      expect(book.getWorksheet('Payments').getCell('B2').value).toBe(50)
+      expect(book.getWorksheet('Payments').getCell('B3').value).toBe(30.5)
+      expect(book.getWorksheet('Payments').getCell('B5').value).toBe(12)
+      expect(book.getWorksheet('Products').getCell('B2').value).toBe('Cheese pizza')
+      expect(book.getWorksheet('Products').getCell('E6').value.result).toBe(80.5)
+      expect(book.getWorksheet('Order status').getCell('B2').value).toBe(1)
     } else {
       const text = buffer.toString('latin1')
+      expect(text).toContain('Revenue')
+      expect(text).toContain('(TOTAL)')
       expect(text).toContain('(Product sales details)')
-      expect(text).toContain('(Sales by category)')
-      expect(text).toContain('(Cheese pizza)')
+      expect(text).toContain('(Payment summary)')
+      expect(text).toContain('(Order status)')
     }
   }
 })
@@ -126,6 +159,6 @@ test('Khmer overview and detailed exports retain translated headings', async ({ 
   const chunks = []
   for await (const chunk of stream) chunks.push(chunk)
   const text = Buffer.concat(chunks).toString('latin1')
-  expect([...text.matchAll(/\/Type \/Page\b/g)].length).toBeGreaterThanOrEqual(5)
+  expect([...text.matchAll(/\/Type \/Page\b/g)].length).toBe(4)
   expect(text).toContain('/Subtype /Image')
 })

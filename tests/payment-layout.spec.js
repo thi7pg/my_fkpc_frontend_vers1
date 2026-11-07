@@ -34,26 +34,47 @@ test('cashier filters the payment list by date and status and searches the loade
   await expect(page.locator('.payment-row')).toHaveCount(1)
   await expect(page.locator('.payments-summary')).toContainText('$7.00')
   await page.getByLabel('Search table or invoice').fill('')
-  await page.getByLabel('Filter by day').fill('2026-10-07')
+  await page.getByLabel('From').fill('2026-10-07')
+  await page.getByLabel('To', { exact: true }).fill('2026-10-09')
   await expect
-    .poll(() => requests.some((query) => query.date === '2026-10-07' && query.status === 'open'))
+    .poll(() =>
+      requests.some(
+        (query) =>
+          query.date_from === '2026-10-07' &&
+          query.date_to === '2026-10-09' &&
+          query.status === 'open',
+      ),
+    )
     .toBe(true)
   await page.getByRole('button', { name: 'Next', exact: true }).click()
   await expect
-    .poll(() => requests.some((query) => query.date === '2026-10-07' && query.page === '2'))
+    .poll(() =>
+      requests.some(
+        (query) =>
+          query.date_from === '2026-10-07' && query.date_to === '2026-10-09' && query.page === '2',
+      ),
+    )
     .toBe(true)
   await page.getByRole('button', { name: 'Paid', exact: true }).click()
   await expect
     .poll(() =>
       requests.some(
-        (query) => query.status === 'closed' && query.date === '2026-10-07' && query.page === '1',
+        (query) =>
+          query.status === 'closed' &&
+          query.date_from === '2026-10-07' &&
+          query.date_to === '2026-10-09' &&
+          query.page === '1',
       ),
     )
     .toBe(true)
   await expect(page.locator('.payment-row-action').first()).toHaveText('View receipt')
+  await page.getByLabel('From', { exact: true }).fill('2026-10-10')
+  await expect(page.getByLabel('To', { exact: true })).toHaveValue('2026-10-10')
   await page.getByRole('button', { name: 'All days', exact: true }).click()
   await expect
-    .poll(() => requests.some((query) => query.status === 'closed' && !query.date))
+    .poll(() =>
+      requests.some((query) => query.status === 'closed' && !query.date_from && !query.date_to),
+    )
     .toBe(true)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })
