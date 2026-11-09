@@ -1,5 +1,10 @@
 // English interface phrases are stable keys. Restaurant data is never translated.
 const entries = [
+  ['Product quantity', 'ចំនួន', '상품 수'],
+  ['Sort order', 'លំដាប់បង្ហាញ', '정렬 순서'],
+  ['Created at', 'កាលបរិច្ឆេទបង្កើត', '생성 일시'],
+  ['Updated at', 'កាលបរិច្ឆេទកែប្រែ', '수정 일시'],
+  ['Preparation time (minutes)', 'រយៈពេលរៀបចំ (នាទី)', '준비 시간 (분)'],
   ['Date', 'កាលបរិច្ឆេទ', '날짜'],
   ['Receipt', 'បង្កាន់ដៃ', '영수증'],
   ['Download Receipt', 'ទាញយកបង្កាន់ដៃ', '영수증 다운로드'],

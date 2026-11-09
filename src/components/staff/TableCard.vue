@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue'
 import QRCode from 'qrcode'
 import {
+  EyeIcon,
   QrCodeIcon,
   PencilIcon,
   TrashIcon,
@@ -30,7 +31,7 @@ async function printQr() {
 const props = defineProps({
   table: { type: Object, required: true },
 })
-defineEmits(['edit', 'delete', 'regenerate-qr'])
+defineEmits(['view', 'edit', 'delete', 'regenerate-qr'])
 
 const qrImageUrl = ref('')
 watch(
@@ -96,6 +97,15 @@ const statusStyles = {
       <PrinterIcon class="h-4 w-4" /> {{ $t('Print QR') }}
     </button>
     <div class="flex gap-2">
+      <button
+        type="button"
+        :aria-label="$t('View details')"
+        :title="$t('View details')"
+        class="flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-2 py-2 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+        @click="$emit('view', table)"
+      >
+        <EyeIcon class="h-4 w-4" /><span>{{ $t('View details') }}</span>
+      </button>
       <button
         class="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
         @click="$emit('edit', table)"

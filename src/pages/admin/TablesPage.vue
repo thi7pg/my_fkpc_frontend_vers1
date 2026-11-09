@@ -5,6 +5,7 @@ import { useToast } from 'vue-toastification'
 import { PlusIcon, TableCellsIcon } from '@heroicons/vue/24/outline'
 import { adminService } from '../../services/adminService'
 import TableCard from '../../components/staff/TableCard.vue'
+import RecordDetails from '../../components/staff/RecordDetails.vue'
 import Modal from '../../components/ui/Modal.vue'
 import ConfirmDialog from '../../components/ui/ConfirmDialog.vue'
 import SkeletonLoader from '../../components/ui/SkeletonLoader.vue'
@@ -15,6 +16,7 @@ const toast = useToast()
 const tables = ref([])
 const loading = ref(true)
 
+const viewedRecord = ref(null)
 const modalOpen = ref(false)
 const editing = ref(null)
 const form = ref({ table_number: '', capacity: 2, status: 'available' })
@@ -124,6 +126,7 @@ async function regenerateQr(table) {
         v-for="table in tables"
         :key="table.id"
         :table="table"
+        @view="viewedRecord = $event"
         @edit="openEdit"
         @delete="confirmDelete"
         @regenerate-qr="regenerateQr"
@@ -179,6 +182,8 @@ async function regenerateQr(table) {
         </button>
       </form>
     </Modal>
+
+    <RecordDetails :record="viewedRecord" kind="tables" @close="viewedRecord = null" />
 
     <ConfirmDialog
       v-model="confirmOpen"

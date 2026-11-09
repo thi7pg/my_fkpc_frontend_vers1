@@ -2,8 +2,9 @@
 import { t } from '../../languages'
 import { ref, onMounted } from 'vue'
 import { useToast } from 'vue-toastification'
-import { PlusIcon, PencilIcon, TrashIcon, UsersIcon } from '@heroicons/vue/24/outline'
+import { PlusIcon, EyeIcon, PencilIcon, TrashIcon, UsersIcon } from '@heroicons/vue/24/outline'
 import { adminService } from '../../services/adminService'
+import RecordDetails from '../../components/staff/RecordDetails.vue'
 import Modal from '../../components/ui/Modal.vue'
 import ConfirmDialog from '../../components/ui/ConfirmDialog.vue'
 import SkeletonLoader from '../../components/ui/SkeletonLoader.vue'
@@ -15,6 +16,7 @@ const users = ref([])
 const loading = ref(true)
 const loadError = ref('')
 
+const viewedRecord = ref(null)
 const modalOpen = ref(false)
 const editing = ref(null)
 const form = ref({
@@ -158,6 +160,15 @@ async function doDelete() {
             {{ $t(user.role) }}
           </span>
           <button
+            type="button"
+            :aria-label="$t('View details')"
+            :title="$t('View details')"
+            class="flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            @click="viewedRecord = user"
+          >
+            <EyeIcon class="h-4 w-4" /><span>{{ $t('View details') }}</span>
+          </button>
+          <button
             class="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
             @click="openEdit(user)"
           >
@@ -241,6 +252,8 @@ async function doDelete() {
         </button>
       </form>
     </Modal>
+
+    <RecordDetails :record="viewedRecord" kind="users" @close="viewedRecord = null" />
 
     <ConfirmDialog
       v-model="confirmOpen"

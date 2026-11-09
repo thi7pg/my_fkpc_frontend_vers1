@@ -4,6 +4,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useToast } from 'vue-toastification'
 import {
   PlusIcon,
+  EyeIcon,
   PencilIcon,
   TrashIcon,
   CakeIcon,
@@ -15,6 +16,7 @@ import { useCategoriesStore } from '../../stores/categories'
 import { toFormData } from '../../utils/formData'
 import { formatCurrency } from '../../utils/format'
 import ProductOptionsEditor from '../../components/staff/ProductOptionsEditor.vue'
+import RecordDetails from '../../components/staff/RecordDetails.vue'
 import Modal from '../../components/ui/Modal.vue'
 import ConfirmDialog from '../../components/ui/ConfirmDialog.vue'
 import SkeletonLoader from '../../components/ui/SkeletonLoader.vue'
@@ -27,6 +29,7 @@ const categoriesStore = useCategoriesStore()
 const search = ref('')
 const categoryFilter = ref('')
 
+const viewedRecord = ref(null)
 const modalOpen = ref(false)
 const editing = ref(null)
 const form = ref({
@@ -258,6 +261,15 @@ async function doDelete() {
           </div>
           <div class="mt-2 flex gap-1.5">
             <button
+              type="button"
+              :aria-label="$t('View details')"
+              :title="$t('View details')"
+              class="flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              @click="viewedRecord = product"
+            >
+              <EyeIcon class="h-4 w-4" /><span>{{ $t('View details') }}</span>
+            </button>
+            <button
               class="flex flex-1 items-center justify-center gap-1 rounded-lg border border-slate-200 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
               @click="openEdit(product)"
             >
@@ -424,6 +436,8 @@ async function doDelete() {
         </div>
       </template>
     </Modal>
+
+    <RecordDetails :record="viewedRecord" kind="products" @close="viewedRecord = null" />
 
     <ConfirmDialog
       v-model="confirmOpen"

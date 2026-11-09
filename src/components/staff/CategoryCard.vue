@@ -1,9 +1,9 @@
 <script setup>
 import { computed } from 'vue'
-import { PencilIcon, TrashIcon, TagIcon } from '@heroicons/vue/24/outline'
+import { EyeIcon, PencilIcon, TrashIcon, TagIcon } from '@heroicons/vue/24/outline'
 
 const props = defineProps({ category: { type: Object, required: true } })
-defineEmits(['edit', 'delete'])
+defineEmits(['view', 'edit', 'delete'])
 
 const productCount = computed(
   () =>
@@ -37,6 +37,15 @@ const productCount = computed(
     </div>
 
     <div class="flex gap-1.5">
+      <button
+        type="button"
+        :aria-label="$t('View details')"
+        :title="$t('View details')"
+        class="flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-2 py-2 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+        @click="$emit('view', category)"
+      >
+        <EyeIcon class="h-4 w-4" /><span>{{ $t('View details') }}</span>
+      </button>
       <button
         class="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
         @click="$emit('edit', category)"

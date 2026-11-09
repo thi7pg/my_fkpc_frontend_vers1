@@ -7,6 +7,7 @@ import { adminService } from '../../services/adminService'
 import { useCategoriesStore } from '../../stores/categories'
 import { toFormData } from '../../utils/formData'
 import CategoryCard from '../../components/staff/CategoryCard.vue'
+import RecordDetails from '../../components/staff/RecordDetails.vue'
 import Modal from '../../components/ui/Modal.vue'
 import ConfirmDialog from '../../components/ui/ConfirmDialog.vue'
 import SkeletonLoader from '../../components/ui/SkeletonLoader.vue'
@@ -15,6 +16,7 @@ import EmptyState from '../../components/ui/EmptyState.vue'
 const toast = useToast()
 const store = useCategoriesStore()
 
+const viewedRecord = ref(null)
 const modalOpen = ref(false)
 const editing = ref(null)
 const form = ref({ name: '', is_active: true, sort_order: 0, image: null })
@@ -117,6 +119,7 @@ async function doDelete() {
         v-for="category in store.categories"
         :key="category.id"
         :category="category"
+        @view="viewedRecord = $event"
         @edit="openEdit"
         @delete="confirmDelete"
       />
@@ -170,6 +173,8 @@ async function doDelete() {
         </button>
       </form>
     </Modal>
+
+    <RecordDetails :record="viewedRecord" kind="categories" @close="viewedRecord = null" />
 
     <ConfirmDialog
       v-model="confirmOpen"
